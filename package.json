@@ -8,19 +8,20 @@
     "start": "next start",
     "lint": "next lint",
     "migrate": "ts-node --transpile-only scripts/migrate.ts",
-    "seed": "ts-node --transpile-only scripts/seed.ts"
+    "seed": "ts-node --transpile-only scripts/seed.ts",
+    "db:reset": "ts-node --transpile-only scripts/reset.ts",
+    "db:setup": "npm run migrate && npm run seed"
   },
   "dependencies": {
     "@tanstack/react-query": "^5.64.1",
     "@types/lodash": "^4.17.14",
-    "@types/pg": "^8.11.10",
     "csv-parse": "^5.6.0",
     "date-fns": "^4.1.0",
     "framer-motion": "^11.18.1",
     "lodash": "^4.17.21",
+    "lucide-react": "^0.473.0",
     "next": "15.1.5",
     "papaparse": "^5.5.1",
-    "pg": "^8.13.1",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
     "react-query": "^3.39.3",
@@ -29,11 +30,15 @@
     "zod": "^3.24.1"
   },
   "devDependencies": {
-    "@types/node": "^20",
+    "@types/node": "^20.17.14",
+    "@types/pg": "^8.11.10",
     "@types/react": "^19",
     "@types/react-dom": "^19",
+    "dotenv": "^16.4.7",
+    "pg": "^8.13.1",
     "postcss": "^8",
     "tailwindcss": "^3.4.1",
-    "typescript": "^5"
+    "ts-node": "^10.9.2",
+    "typescript": "^5.7.3"
   }
 }
