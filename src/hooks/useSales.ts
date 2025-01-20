@@ -1,3 +1,4 @@
+
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { SalesEntry } from '@/types/common';
 import { DailySales, SalesAnalytics } from '@/types/sales';
@@ -29,7 +30,26 @@ export function useSales({ restaurantId, initialDate = new Date() }: UseSalesOpt
         }
     });
 
-    // Add sales entry
+    // Fetch sales analytics
+    const {
+        data: analyticsData,
+        isLoading: isLoadingAnalytics,
+        error: analyticsError
+    } = useQuery<ApiResponse<SalesAnalytics>>({
+        queryKey: ['sales-analytics', restaurantId, selectedDate],
+        queryFn: async () => {
+            const startDate = new Date(selectedDate);
+            startDate.setDate(startDate.getDate() - 30); // Last 30 days by default
+
+            const response = await fetch(
+                `/api/sales?restaurantId=${restaurantId}&type=analytics&startDate=${startDate.toISOString()}&endDate=${selectedDate.toISOString()}`
+            );
+            if (!response.ok) throw new Error('Failed to fetch sales analytics');
+            return response.json();
+        }
+    });
+
+    // Add sales entry mutation
     const {
         mutate: addSalesEntry,
         isLoading: isAddingEntry,
@@ -45,17 +65,17 @@ export function useSales({ restaurantId, initialDate = new Date() }: UseSalesOpt
             return response.json();
         },
         onSuccess: () => {
-            // Invalidate and refetch
-            queryClient.invalidateQueries({
-                queryKey: ['sales', restaurantId, selectedDate]
-            });
+            queryClient.invalidateQueries({ queryKey: ['sales', restaurantId, selectedDate] });
+            queryClient.invalidateQueries({ queryKey: ['sales-analytics', restaurantId, selectedDate] });
+            
         }
     });
 
     return {
         dailySales: dailySales?.data,
-        isLoadingDaily,
-        dailyError,
+        salesAnalytics: analyticsData?.data,
+        isLoading: isLoadingDaily || isLoadingAnalytics,
+        error: dailyError || analyticsError,
         addSalesEntry,
         isAddingEntry,
         addError,

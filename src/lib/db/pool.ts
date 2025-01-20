@@ -1,5 +1,9 @@
 // src/lib/db/pool.ts
 import { Pool, PoolConfig } from 'pg';
+import * as dotenv from 'dotenv';
+
+dotenv.config({ path: '.env.local' });
+dotenv.config();
 
 const config: PoolConfig = {
   user: process.env.POSTGRES_USER,
@@ -24,4 +28,3 @@ pool.on('error', (err) => {
 });
 
 export default pool;
-

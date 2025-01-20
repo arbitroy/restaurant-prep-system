@@ -6,37 +6,31 @@ interface UseItemsOptions {
     restaurantId: number;
 }
 
+interface ItemsResponse {
+    menuItems: MenuItem[];
+    prepItems: PrepItem[];
+}
+
 export function useItems({ restaurantId }: UseItemsOptions) {
-    // Fetch menu items
     const {
-        data: menuItems,
-        isLoading: isLoadingMenu,
-        error: menuError
-    } = useQuery<ApiResponse<MenuItem[]>>({
-        queryKey: ['menuItems', restaurantId],
+        data,
+        isLoading,
+        error
+    } = useQuery<ApiResponse<ItemsResponse>>({
+        queryKey: ['items', restaurantId],
         queryFn: async () => {
             const response = await fetch(`/api/items?restaurantId=${restaurantId}`);
-            if (!response.ok) throw new Error('Failed to fetch menu items');
+            if (!response.ok) {
+                const errorData = await response.json();
+                throw new Error(errorData.error || 'Failed to fetch items');
+            }
             return response.json();
-        }
-    });
-
-    // Fetch prep items
-    const {
-        data: prepItems,
-        isLoading: isLoadingPrep,
-        error: prepError
-    } = useQuery<ApiResponse<PrepItem[]>>({
-        queryKey: ['prepItems', restaurantId],
-        queryFn: async () => {
-            const response = await fetch(`/api/items?restaurantId=${restaurantId}&type=prep`);
-            if (!response.ok) throw new Error('Failed to fetch prep items');
-            return response.json();
-        }
+        },
+        enabled: !!restaurantId
     });
 
     // Group menu items by category
-    const menuItemsByCategory = menuItems?.data?.reduce((acc, item) => {
+    const menuItemsByCategory = data?.data?.menuItems.reduce((acc, item) => {
         if (!acc[item.category]) {
             acc[item.category] = [];
         }
@@ -45,7 +39,7 @@ export function useItems({ restaurantId }: UseItemsOptions) {
     }, {} as Record<string, MenuItem[]>) || {};
 
     // Group prep items by sheet
-    const prepItemsBySheet = prepItems?.data?.reduce((acc, item) => {
+    const prepItemsBySheet = data?.data?.prepItems.reduce((acc, item) => {
         if (!acc[item.sheetName]) {
             acc[item.sheetName] = [];
         }
@@ -54,13 +48,12 @@ export function useItems({ restaurantId }: UseItemsOptions) {
     }, {} as Record<string, PrepItem[]>) || {};
 
     return {
-        menuItems: menuItems?.data || [],
-        prepItems: prepItems?.data || [],
+        menuItems: data?.data?.menuItems || [],
+        prepItems: data?.data?.prepItems || [],
         menuItemsByCategory,
         prepItemsBySheet,
-        isLoadingMenu,
-        isLoadingPrep,
-        menuError,
-        prepError
+        isLoadingMenu: isLoading,
+        isLoadingPrep: isLoading,
+        error
     };
 }

@@ -1,3 +1,5 @@
+'use client';
+
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { navigationItems } from '@/lib/constants/navigation';
@@ -16,7 +18,7 @@ export function Navigation() {
                             : 'text-gray-700 hover:bg-[#abac7f] hover:text-white'
                         }`}
                 >
-                    {item.icon}
+                    <item.icon />
                     <span>{item.name}</span>
                 </Link>
             ))}

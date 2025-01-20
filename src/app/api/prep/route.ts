@@ -1,45 +1,85 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { PrepService } from '@/services/prep.service';
+import { query } from '@/lib/db';
 import { DatabaseError } from '@/types/errors';
 
-export async function GET(request: NextRequest) {
+export async function POST(request: NextRequest) {
     try {
-        const { searchParams } = new URL(request.url);
-        const restaurantId = Number(searchParams.get('restaurantId'));
-        const date = searchParams.get('date');
-        const sheetName = searchParams.get('sheetName');
+        const body = await request.json();
+        const { restaurantId, name, unit, sheetName } = body;
 
-        if (!restaurantId || !date) {
+        // Validate required fields
+        if (!restaurantId || !name || !unit || !sheetName) {
             return NextResponse.json(
-                { error: 'Restaurant ID and date are required' },
+                { error: 'Missing required fields' },
                 { status: 400 }
             );
         }
 
-        const prepQuery = {
-            restaurantId,
-            date: new Date(date),
-            sheetName: sheetName || undefined
-        };
+        console.log('Adding prep item:', { restaurantId, name, unit, sheetName });
 
-        const prepRequirements = await PrepService.calculatePrepRequirements(prepQuery);
+        const { rows } = await query({
+            text: `
+                INSERT INTO prep_items 
+                (restaurant_id, name, unit, sheet_name)
+                VALUES ($1, $2, $3, $4)
+                RETURNING id, name, unit, sheet_name, created_at, updated_at
+            `,
+            values: [restaurantId, name, unit, sheetName]
+        });
 
-        if (!sheetName) {
-            // If no specific sheet is requested, get all sheets
-            const sheets = await PrepService.getSheetsByDate(restaurantId, new Date(date));
-            return NextResponse.json(sheets);
-        }
+        console.log('Added prep item:', rows[0]);
 
-        return NextResponse.json(prepRequirements);
+        return NextResponse.json({
+            status: 'success',
+            data: rows[0]
+        });
     } catch (error) {
+        console.error('Error adding prep item:', error);
+        
         if (error instanceof DatabaseError) {
             return NextResponse.json(
                 { error: error.message },
                 { status: 500 }
             );
         }
+
         return NextResponse.json(
-            { error: 'Internal server error' },
+            { error: 'Failed to add prep item' },
+            { status: 500 }
+        );
+    }
+}
+
+export async function GET(request: NextRequest) {
+    try {
+        const { searchParams } = new URL(request.url);
+        const restaurantId = searchParams.get('restaurantId');
+
+        if (!restaurantId) {
+            return NextResponse.json(
+                { error: 'Restaurant ID is required' },
+                { status: 400 }
+            );
+        }
+
+        const { rows } = await query({
+            text: `
+                SELECT id, name, unit, sheet_name, created_at, updated_at
+                FROM prep_items
+                WHERE restaurant_id = $1
+                ORDER BY sheet_name, name
+            `,
+            values: [restaurantId]
+        });
+
+        return NextResponse.json({
+            status: 'success',
+            data: rows
+        });
+    } catch (error) {
+        console.error('Error fetching prep items:', error);
+        return NextResponse.json(
+            { error: 'Failed to fetch prep items' },
             { status: 500 }
         );
     }

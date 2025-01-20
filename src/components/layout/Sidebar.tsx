@@ -1,3 +1,5 @@
+'use client';
+
 import { motion } from 'framer-motion';
 import { navigationItems } from '@/lib/constants/navigation';
 import Link from 'next/link';
@@ -14,22 +16,26 @@ export function Sidebar() {
         >
             <nav>
                 <ul className="space-y-2">
-                    {navigationItems.map((item) => (
-                        <li key={item.path}>
-                            <Link
-                                href={item.path}
-                                className={`flex items-center space-x-2 px-4 py-2.5 rounded transition duration-200 ${pathname === item.path
-                                        ? 'bg-[#373d20] text-white'
-                                        : 'hover:bg-[#abac7f] hover:text-white'
+                    {navigationItems.map((item) => {
+                        const Icon = item.icon;
+                        return (
+                            <li key={item.path}>
+                                <Link
+                                    href={item.path}
+                                    className={`flex items-center space-x-2 px-4 py-2.5 rounded transition duration-200 ${
+                                        pathname === item.path
+                                            ? 'bg-[#373d20] text-white'
+                                            : 'hover:bg-[#abac7f] hover:text-white'
                                     }`}
-                            >
-                                {item.icon}
-                                <span>{item.name}</span>
-                            </Link>
-                        </li>
-                    ))}
+                                >
+                                    <Icon className="w-5 h-5" />
+                                    <span>{item.name}</span>
+                                </Link>
+                            </li>
+                        );
+                    })}
                 </ul>
             </nav>
         </motion.aside>
-    )
+    );
 }

@@ -12,7 +12,7 @@ interface PrepCalculatorProps {
 }
 
 export function PrepCalculator({
-    requirements,
+    requirements = [], // Provide default empty array
     onSheetChange,
     onPrint
 }: PrepCalculatorProps) {
@@ -23,9 +23,10 @@ export function PrepCalculator({
         onSheetChange?.(sheet);
     };
 
-    const filteredRequirements = requirements.filter(
-        req => req.sheetName === selectedSheet
-    );
+    // Safely filter requirements
+    const filteredRequirements = requirements?.filter(
+        req => req && req.sheetName === selectedSheet
+    ) || [];
 
     return (
         <motion.div
@@ -54,31 +55,31 @@ export function PrepCalculator({
             </div>
 
             <div className="space-y-4">
-                {filteredRequirements.map((req) => (
-                    <motion.div
-                        key={req.id}
-                        initial={{ opacity: 0 }}
-                        animate={{ opacity: 1 }}
-                        className="p-4 border rounded-lg"
-                    >
-                        <div className="flex justify-between items-center">
-                            <div>
-                                <h4 className="font-medium">{req.name}</h4>
-                                <p className="text-sm text-gray-500">
-                                    Required: {req.quantity} {req.unit}
-                                </p>
+                {filteredRequirements.length > 0 ? (
+                    filteredRequirements.map((req) => (
+                        <motion.div
+                            key={req.id}
+                            initial={{ opacity: 0 }}
+                            animate={{ opacity: 1 }}
+                            className="p-4 border rounded-lg"
+                        >
+                            <div className="flex justify-between items-center">
+                                <div>
+                                    <h4 className="font-medium">{req.name}</h4>
+                                    <p className="text-sm text-gray-500">
+                                        Required: {req.quantity} {req.unit}
+                                    </p>
+                                </div>
+                                <div className="text-right">
+                                    <p className="text-sm text-gray-500">Next Day Buffer</p>
+                                    <p className="font-medium">
+                                        +{Math.ceil(req.quantity * 0.5)} {req.unit}
+                                    </p>
+                                </div>
                             </div>
-                            <div className="text-right">
-                                <p className="text-sm text-gray-500">Next Day Buffer</p>
-                                <p className="font-medium">
-                                    +{Math.ceil(req.quantity * 0.5)} {req.unit}
-                                </p>
-                            </div>
-                        </div>
-                    </motion.div>
-                ))}
-
-                {filteredRequirements.length === 0 && (
+                        </motion.div>
+                    ))
+                ) : (
                     <p className="text-center text-gray-500 py-8">
                         No prep requirements for this sheet
                     </p>

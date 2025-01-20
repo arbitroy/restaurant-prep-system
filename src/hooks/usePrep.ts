@@ -1,6 +1,7 @@
 import { useQuery } from '@tanstack/react-query';
 import { PrepRequirement, PrepSheet } from '@/types/prep';
 import { ApiResponse } from '@/types/api';
+import { PrepItem } from '@/types/common';
 import { useState } from 'react';
 
 interface UsePrepOptions {
@@ -12,10 +13,20 @@ export function usePrep({ restaurantId, initialDate = new Date() }: UsePrepOptio
     const [selectedDate, setSelectedDate] = useState(initialDate);
     const [selectedSheet, setSelectedSheet] = useState<string | undefined>();
 
+    // Fetch prep items
+    const { data: prepItemsData, isLoading: isLoadingPrepItems } = useQuery<ApiResponse<PrepItem[]>>({
+        queryKey: ['prepItems', restaurantId],
+        queryFn: async () => {
+            const response = await fetch(`/api/items?restaurantId=${restaurantId}&type=prep`);
+            if (!response.ok) throw new Error('Failed to fetch prep items');
+            return response.json();
+        }
+    });
+
     // Fetch prep requirements
     const {
         data: prepData,
-        isLoading,
+        isLoading: isLoadingPrep,
         error
     } = useQuery<ApiResponse<PrepSheet[]>>({
         queryKey: ['prep', restaurantId, selectedDate, selectedSheet],
@@ -44,7 +55,8 @@ export function usePrep({ restaurantId, initialDate = new Date() }: UsePrepOptio
 
     return {
         prepSheets: prepData?.data || [],
-        isLoading,
+        prepItems: prepItemsData?.data || [],
+        isLoading: isLoadingPrep || isLoadingPrepItems,
         error,
         selectedDate,
         setSelectedDate,

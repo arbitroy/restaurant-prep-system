@@ -1,41 +1,68 @@
 const { Pool } = require('pg');
 const path = require('path');
 const fs = require('fs').promises;
+const dotenv = require('dotenv');
+
+// Load environment variables
+dotenv.config({ path: '.env.local' });
+dotenv.config();
 
 async function migrate() {
-    // Load environment variables
+    console.log('Starting migration...');
+
+    // Create a new pool for migrations
     const config = {
         user: process.env.POSTGRES_USER,
         password: process.env.POSTGRES_PASSWORD,
         host: process.env.POSTGRES_HOST,
         port: parseInt(process.env.POSTGRES_PORT || '5432'),
         database: process.env.POSTGRES_DATABASE,
+        ssl: process.env.NODE_ENV === 'production'
+            ? { rejectUnauthorized: false }
+            : false
     };
+
+    console.log('Migration config (without password):', {
+        ...config,
+        password: '[REDACTED]'
+    });
 
     const pool = new Pool(config);
 
     try {
+        // Test connection before proceeding
+        await pool.query('SELECT NOW()');
+        console.log('Successfully connected to database');
+
         // Create migrations table if it doesn't exist
         await pool.query(`
-      CREATE TABLE IF NOT EXISTS migrations (
-        id SERIAL PRIMARY KEY,
-        name VARCHAR(255) NOT NULL,
-        executed_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-      )
-    `);
+            CREATE TABLE IF NOT EXISTS migrations (
+                id SERIAL PRIMARY KEY,
+                name VARCHAR(255) NOT NULL,
+                executed_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        `);
 
         // Read migration files
         const migrationsDir = path.join(__dirname, '../src/lib/db/migrations');
+        console.log('Reading migrations from:', migrationsDir);
+
         const files = await fs.readdir(migrationsDir);
-        const migrationFiles = files
+        const migrationFiles: string[] = files
             .filter((f: string) => f.endsWith('.sql'))
             .sort();
+
+        console.log('Found migration files:', migrationFiles);
 
         // Get executed migrations
         const { rows: executedMigrations } = await pool.query(
             'SELECT name FROM migrations'
         );
-        const executedMigrationNames = executedMigrations.map((row: { name: any; }) => row.name);
+        interface MigrationRow {
+            name: string;
+        }
+
+        const executedMigrationNames: string[] = executedMigrations.map((row: MigrationRow) => row.name);
 
         // Execute pending migrations
         for (const file of migrationFiles) {
@@ -58,6 +85,8 @@ async function migrate() {
                     console.error(`Migration ${file} failed:`, error);
                     throw error;
                 }
+            } else {
+                console.log(`Skipping migration ${file} - already executed`);
             }
         }
 

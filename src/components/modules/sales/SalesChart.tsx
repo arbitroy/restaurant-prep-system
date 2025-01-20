@@ -14,7 +14,7 @@ import { Button } from '@/components/ui/Button';
 import { SalesAnalytics } from '@/types/sales';
 
 interface SalesChartProps {
-    data: SalesAnalytics;
+    data?: SalesAnalytics;
     startDate: Date;
     endDate: Date;
 }
@@ -23,6 +23,44 @@ type ViewType = 'daily' | 'weekly' | 'monthly';
 
 export function SalesChart({ data, startDate, endDate }: SalesChartProps) {
     const [viewType, setViewType] = useState<ViewType>('daily');
+
+    // Handle case when data is undefined
+    if (!data) {
+        return (
+            <motion.div
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                className="bg-white rounded-lg shadow-sm p-6"
+            >
+                <div className="flex justify-between items-center mb-6">
+                    <h3 className="text-lg font-medium">Sales Overview</h3>
+                    <div className="flex space-x-2">
+                        <Button
+                            variant={viewType === 'daily' ? 'primary' : 'outline'}
+                            onClick={() => setViewType('daily')}
+                        >
+                            Daily
+                        </Button>
+                        <Button
+                            variant={viewType === 'weekly' ? 'primary' : 'outline'}
+                            onClick={() => setViewType('weekly')}
+                        >
+                            Weekly
+                        </Button>
+                        <Button
+                            variant={viewType === 'monthly' ? 'primary' : 'outline'}
+                            onClick={() => setViewType('monthly')}
+                        >
+                            Monthly
+                        </Button>
+                    </div>
+                </div>
+                <div className="h-[400px] flex items-center justify-center">
+                    <p className="text-gray-500">No sales data available</p>
+                </div>
+            </motion.div>
+        );
+    }
 
     const chartData = [
         { name: 'Average Daily', value: data.averageDaily },
@@ -40,21 +78,18 @@ export function SalesChart({ data, startDate, endDate }: SalesChartProps) {
                 <div className="flex space-x-2">
                     <Button
                         variant={viewType === 'daily' ? 'primary' : 'outline'}
-                        size="sm"
                         onClick={() => setViewType('daily')}
                     >
                         Daily
                     </Button>
                     <Button
                         variant={viewType === 'weekly' ? 'primary' : 'outline'}
-                        size="sm"
                         onClick={() => setViewType('weekly')}
                     >
                         Weekly
                     </Button>
                     <Button
                         variant={viewType === 'monthly' ? 'primary' : 'outline'}
-                        size="sm"
                         onClick={() => setViewType('monthly')}
                     >
                         Monthly
@@ -87,8 +122,7 @@ export function SalesChart({ data, startDate, endDate }: SalesChartProps) {
                         <span className="text-2xl font-semibold">
                             {data.trendPercentage > 0 ? '+' : ''}{data.trendPercentage}%
                         </span>
-                        <span className={`ml-2 ${data.trendPercentage > 0 ? 'text-green-500' : 'text-red-500'
-                            }`}>
+                        <span className={`ml-2 ${data.trendPercentage > 0 ? 'text-green-500' : 'text-red-500'}`}>
                             vs. previous period
                         </span>
                     </div>
@@ -96,12 +130,18 @@ export function SalesChart({ data, startDate, endDate }: SalesChartProps) {
                 <div className="p-4 bg-gray-50 rounded-lg">
                     <h4 className="text-sm font-medium text-gray-500">Top Item</h4>
                     <div className="mt-1">
-                        <span className="text-2xl font-semibold">
-                            {data.topItems[0]?.name}
-                        </span>
-                        <span className="ml-2 text-gray-500">
-                            ({data.topItems[0]?.quantity} units)
-                        </span>
+                        {data.topItems && data.topItems.length > 0 ? (
+                            <>
+                                <span className="text-2xl font-semibold">
+                                    {data.topItems[0].name}
+                                </span>
+                                <span className="ml-2 text-gray-500">
+                                    ({data.topItems[0].quantity} units)
+                                </span>
+                            </>
+                        ) : (
+                            <span className="text-gray-500">No top items data</span>
+                        )}
                     </div>
                 </div>
             </div>

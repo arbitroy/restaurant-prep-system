@@ -1,15 +1,64 @@
-import { forwardRef } from 'react';
+import { forwardRef, useState } from 'react';
 import { motion } from 'framer-motion';
+import { Button } from '@/components/ui/Button';
+import { Input } from '@/components/ui/Input';
 import { PrepRequirement } from '@/types/prep';
+import { useToast } from '@/components/ui/Toast/ToastContext';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
 
 interface PrepSheetProps {
     title: string;
     date: Date;
     requirements: PrepRequirement[];
+    showControls?: boolean;
 }
 
 export const PrepSheet = forwardRef<HTMLDivElement, PrepSheetProps>(
-    ({ title, date, requirements }, ref) => {
+    ({ title, date, requirements, showControls = true }, ref) => {
+        const { showToast } = useToast();
+        const queryClient = useQueryClient();
+        const [completedQuantities, setCompletedQuantities] = useState<Record<number, number>>({});
+        const [notes, setNotes] = useState<Record<number, string>>({});
+
+        // Update prep task mutation
+        const updateTask = useMutation({
+            mutationFn: async (params: {
+                id: number;
+                completedQuantity: number;
+                status: 'pending' | 'in_progress' | 'completed';
+                notes?: string;
+            }) => {
+                const response = await fetch('/api/prep/tasks', {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(params)
+                });
+                if (!response.ok) throw new Error('Failed to update task');
+                return response.json();
+            },
+            onSuccess: () => {
+                showToast('Prep task updated successfully', 'success');
+                queryClient.invalidateQueries({ queryKey: ['prepTasks'] });
+            },
+            onError: () => {
+                showToast('Failed to update prep task', 'error');
+            }
+        });
+
+        const handleComplete = (requirement: PrepRequirement) => {
+            const completedQuantity = completedQuantities[requirement.id] || 0;
+            if (completedQuantity >= requirement.quantity) {
+                updateTask.mutate({
+                    id: requirement.id,
+                    completedQuantity,
+                    status: 'completed',
+                    notes: notes[requirement.id]
+                });
+            } else {
+                showToast('Please complete the required quantity', 'error');
+            }
+        };
+
         return (
             <div ref={ref} className="bg-white p-8">
                 <div className="max-w-4xl mx-auto">
@@ -26,64 +75,72 @@ export const PrepSheet = forwardRef<HTMLDivElement, PrepSheetProps>(
                     </div>
 
                     <div className="space-y-8">
-                        {requirements.length > 0 ? (
-                            Object.entries(
-                                requirements.reduce((acc, req) => {
-                                    if (!acc[req.sheetName]) {
-                                        acc[req.sheetName] = [];
-                                    }
-                                    acc[req.sheetName].push(req);
-                                    return acc;
-                                }, {} as Record<string, PrepRequirement[]>)
-                            ).map(([sheetName, items]) => (
-                                <div key={sheetName} className="space-y-4">
-                                    <h3 className="text-xl font-semibold border-b pb-2">
-                                        {sheetName}
-                                    </h3>
-                                    <div className="grid grid-cols-2 gap-4">
-                                        {items.map((item) => (
-                                            <div
-                                                key={item.id}
-                                                className="p-4 border rounded-lg flex justify-between items-center"
-                                            >
-                                                <div>
-                                                    <p className="font-medium">{item.name}</p>
-                                                    <p className="text-sm text-gray-500">{item.unit}</p>
-                                                </div>
-                                                <div className="text-right">
-                                                    <p className="font-bold text-lg">
-                                                        {item.quantity}
-                                                    </p>
-                                                    <div className="h-8 w-16 border-b border-gray-300 mt-2" />
-                                                </div>
-                                            </div>
-                                        ))}
+                        {requirements.map((item) => (
+                            <motion.div
+                                key={item.id}
+                                initial={showControls ? { opacity: 0, y: 20 } : false}
+                                animate={{ opacity: 1, y: 0 }}
+                                className="p-4 border rounded-lg"
+                            >
+                                <div className="flex justify-between items-start">
+                                    <div>
+                                        <h4 className="font-medium">{item.name}</h4>
+                                        <p className="text-sm text-gray-500">
+                                            Required: {item.quantity} {item.unit}
+                                        </p>
                                     </div>
+                                    {showControls && (
+                                        <div className="space-y-2">
+                                            <Input
+                                                type="number"
+                                                value={completedQuantities[item.id] || ''}
+                                                onChange={(e) => setCompletedQuantities(prev => ({
+                                                    ...prev,
+                                                    [item.id]: Number(e.target.value)
+                                                }))}
+                                                placeholder="Completed amount"
+                                                className="w-32"
+                                            />
+                                            <Input
+                                                value={notes[item.id] || ''}
+                                                onChange={(e) => setNotes(prev => ({
+                                                    ...prev,
+                                                    [item.id]: e.target.value
+                                                }))}
+                                                placeholder="Add notes"
+                                            />
+                                            <Button
+                                                size="sm"
+                                                onClick={() => handleComplete(item)}
+                                                className="w-full"
+                                            >
+                                                Complete
+                                            </Button>
+                                        </div>
+                                    )}
                                 </div>
-                            ))
-                        ) : (
-                            <p className="text-center text-gray-500 py-8">
-                                No prep requirements found
-                            </p>
-                        )}
+                            </motion.div>
+                        ))}
                     </div>
 
-                    <div className="mt-8 pt-8 border-t">
-                        <div className="grid grid-cols-3 gap-8">
-                            <div>
-                                <p className="text-sm text-gray-500">Prepared By</p>
-                                <div className="h-8 border-b border-gray-300 mt-2" />
-                            </div>
-                            <div>
-                                <p className="text-sm text-gray-500">Checked By</p>
-                                <div className="h-8 border-b border-gray-300 mt-2" />
-                            </div>
-                            <div>
-                                <p className="text-sm text-gray-500">Date/Time</p>
-                                <div className="h-8 border-b border-gray-300 mt-2" />
+                    {!showControls && (
+                        <div className="mt-8 pt-8 border-t">
+                            <div className="grid grid-cols-3 gap-8">
+                                <div>
+                                    <p className="text-sm text-gray-500">Prepared By</p>
+                                    <div className="h-8 border-b border-gray-300 mt-2" />
+                                </div>
+                                <div>
+                                    <p className="text-sm text-gray-500">Checked By</p>
+                                    <div className="h-8 border-b border-gray-300 mt-2" />
+                                </div>
+                                <div>
+                                    <p className="text-sm text-gray-500">Date/Time</p>
+                                    <div className="h-8 border-b border-gray-300 mt-2" />
+                                </div>
                             </div>
                         </div>
-                    </div>
+                    )}
                 </div>
             </div>
         );
