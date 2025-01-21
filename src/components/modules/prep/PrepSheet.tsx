@@ -59,6 +59,12 @@ export const PrepSheet = forwardRef<HTMLDivElement, PrepSheetProps>(
             }
         };
 
+
+        // Ensure requirements array is unique
+        const uniqueRequirements = requirements.filter((req, index, self) =>
+            index === self.findIndex((r) => r.id === req.id)
+        );
+
         return (
             <div ref={ref} className="bg-white p-8">
                 <div className="max-w-4xl mx-auto">
@@ -74,10 +80,10 @@ export const PrepSheet = forwardRef<HTMLDivElement, PrepSheetProps>(
                         </p>
                     </div>
 
-                    <div className="space-y-8">
-                        {requirements.map((item) => (
+                    <div className="space-y-4">
+                        {uniqueRequirements.map((item) => (
                             <motion.div
-                                key={item.id}
+                                key={`prep-item-${item.id}-${date.toISOString()}`}
                                 initial={showControls ? { opacity: 0, y: 20 } : false}
                                 animate={{ opacity: 1, y: 0 }}
                                 className="p-4 border rounded-lg"

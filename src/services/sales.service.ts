@@ -189,4 +189,34 @@ export class SalesService {
             );
         }
     }
+
+    static async deleteSalesEntry(id: number): Promise<number> {
+        try {
+            const result = await query({
+                text: 'DELETE FROM sales WHERE id = $1',
+                values: [id]
+            });
+
+            // Check if any rows were actually deleted
+            if (result.rowCount === 0) {
+                throw new DatabaseError(`No sales entry found with id ${id}`);
+            }
+
+            if (result.rowCount === null) {
+                throw new DatabaseError('Failed to delete sales entry');
+            }
+            return result.rowCount;
+        } catch (error) {
+            if (error instanceof DatabaseError) {
+                throw error;
+            }
+            
+            throw new DatabaseError(
+                'Failed to delete sales entry',
+                error instanceof Error ? error.message : undefined
+            );
+        }
+    }
+
+
 }

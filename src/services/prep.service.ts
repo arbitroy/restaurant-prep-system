@@ -1,5 +1,5 @@
-import { query, transaction } from '@/lib/db';
-import { PrepQuery, ApiResponse } from '@/types/api';
+import { query } from '@/lib/db';
+import { PrepQuery, ApiResponse, PrepRequirementData } from '@/types/api';
 import { PrepRequirement, PrepSheet } from '@/types/prep';
 import { DatabaseError } from '@/types/errors';
 
@@ -46,15 +46,30 @@ export class PrepService {
                 params.restaurantId,
                 startDate.toISOString(),
                 params.date.toISOString(),
-                params.sheetName
-            ].filter(Boolean);
+                params.sheetName || null
+            ];
 
             const { rows } = await query({
                 text: salesQuery,
                 values: queryValues
             });
 
-            const prepRequirements = this.processPrepRequirements(rows, params.date.getDay());
+            const prepRequirementData: PrepRequirementData[] = rows.map(row => ({
+                prep_item_id: row.prep_item_id,
+                prep_name: row.prep_name,
+                unit: row.unit,
+                sheet_name: row.sheet_name,
+                avg_quantity: row.avg_quantity,
+                prep_quantity: row.prep_quantity,
+                day_of_week: row.day_of_week,
+                buffer_quantity: () => 0, // Add default or calculated values for missing properties
+                minimum_quantity: () => 0, // Add default or calculated values for missing properties
+                id: row.prep_item_id, // Add default or calculated values for missing properties
+                name: row.prep_name, // Add default or calculated values for missing properties
+                quantity: row.prep_quantity * row.avg_quantity // Add the missing 'quantity' property
+            }));
+
+            const prepRequirements = this.processPrepRequirements(prepRequirementData, params.date.getDay());
 
             return {
                 status: 'success',
@@ -112,7 +127,7 @@ export class PrepService {
     }
 
     private static processPrepRequirements(
-        rows: any[],
+        rows: PrepRequirementData[],
         currentDayOfWeek: number
     ): PrepRequirement[] {
         const nextDayOfWeek = (currentDayOfWeek + 1) % 7;

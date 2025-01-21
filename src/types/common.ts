@@ -15,11 +15,15 @@ export interface MenuItem extends BaseEntity {
     prepItems?: PrepItemMapping[];
 }
 
-export interface PrepItem extends BaseEntity {
+export interface PrepItem {
+    id: number;
     restaurantId: number;
     name: string;
     unit: string;
     sheetName: string;
+    order?: number;
+    createdAt: Date;
+    updatedAt: Date;
 }
 
 export interface PrepItemMapping extends BaseEntity {

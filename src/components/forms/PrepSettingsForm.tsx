@@ -10,8 +10,14 @@ import { useMutation, useQueryClient } from '@tanstack/react-query';
 
 interface PrepSettingsFormProps {
     restaurantId: number;
-    prepItems: PrepItem[];
+    prepItems: PrepItem[] | undefined;
     onClose: () => void;
+}
+interface PrepSettingsData {
+    restaurantId: number;
+    prepItemId: number;
+    bufferPercentage: number;
+    minimumQuantity: number;
 }
 
 export function PrepSettingsForm({ 
@@ -28,7 +34,7 @@ export function PrepSettingsForm({
     });
 
     const updateSettings = useMutation({
-        mutationFn: async (data: any) => {
+        mutationFn: async (data: PrepSettingsData) => {
             const response = await fetch('/api/prep/settings', {
                 method: 'PUT',
                 headers: { 'Content-Type': 'application/json' },

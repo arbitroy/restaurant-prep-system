@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { query } from '@/lib/db';
-import { DatabaseError } from '@/types/errors';
 
 export async function GET() {
     try {
@@ -12,7 +11,7 @@ export async function GET() {
             status: 'success',
             data: rows
         });
-    } catch (error) {
+    } catch {
         return NextResponse.json(
             { error: 'Failed to fetch restaurants' },
             { status: 500 }
@@ -41,7 +40,7 @@ export async function POST(request: NextRequest) {
             status: 'success',
             data: rows[0]
         });
-    } catch (error) {
+    } catch {
         return NextResponse.json(
             { error: 'Failed to create restaurant' },
             { status: 500 }
@@ -77,7 +76,7 @@ export async function PUT(request: NextRequest) {
             status: 'success',
             data: rows[0]
         });
-    } catch (error) {
+    } catch {
         return NextResponse.json(
             { error: 'Failed to update restaurant' },
             { status: 500 }
@@ -106,7 +105,7 @@ export async function DELETE(request: NextRequest) {
             status: 'success',
             message: 'Restaurant deleted successfully'
         });
-    } catch (error) {
+    } catch {
         return NextResponse.json(
             { error: 'Failed to delete restaurant' },
             { status: 500 }

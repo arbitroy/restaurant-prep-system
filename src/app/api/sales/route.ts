@@ -95,3 +95,48 @@ export async function GET(request: NextRequest) {
         );
     }
 }
+
+export async function DELETE(request: NextRequest): Promise<NextResponse> {
+    try {
+        // Extract ID from request's URL search params
+        const { searchParams } = new URL(request.url);
+        const idParam = searchParams.get('id');
+        
+        if (!idParam) {
+            return NextResponse.json(
+                { error: 'ID is required' },
+                { status: 400 }
+            );
+        }
+
+        const id = parseInt(idParam);
+
+        if (isNaN(id)) {
+            return NextResponse.json(
+                { error: 'Invalid ID format' },
+                { status: 400 }
+            );
+        }
+
+        const result = await SalesService.deleteSalesEntry(id);
+
+        return NextResponse.json({
+            status: 'success',
+            message: 'Sales entry deleted successfully',
+            deletedCount: result
+        });
+    } catch (error) {
+        console.error('Delete operation error:', error);
+        
+        if (error instanceof DatabaseError) {
+            return NextResponse.json(
+                { error: error.message },
+                { status: 500 }
+            );
+        }
+        return NextResponse.json(
+            { error: 'Internal server error' },
+            { status: 500 }
+        );
+    }
+}

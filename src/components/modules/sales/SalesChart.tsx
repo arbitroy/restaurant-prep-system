@@ -21,7 +21,7 @@ interface SalesChartProps {
 
 type ViewType = 'daily' | 'weekly' | 'monthly';
 
-export function SalesChart({ data, startDate, endDate }: SalesChartProps) {
+export function SalesChart({ data }: SalesChartProps) {
     const [viewType, setViewType] = useState<ViewType>('daily');
 
     // Handle case when data is undefined

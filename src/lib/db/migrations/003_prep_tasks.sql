@@ -1,6 +1,13 @@
-CREATE TYPE prep_status AS ENUM ('pending', 'in_progress', 'completed');
+-- Check if enum type exists first
+DO $$ 
+BEGIN
+    IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'prep_status') THEN
+        CREATE TYPE prep_status AS ENUM ('pending', 'in_progress', 'completed');
+    END IF;
+END $$;
 
-CREATE TABLE prep_tasks (
+-- Create prep tasks table if it doesn't exist
+CREATE TABLE IF NOT EXISTS prep_tasks (
     id SERIAL PRIMARY KEY,
     restaurant_id INTEGER REFERENCES restaurants(id) ON DELETE CASCADE,
     prep_item_id INTEGER REFERENCES prep_items(id) ON DELETE CASCADE,
@@ -15,8 +22,8 @@ CREATE TABLE prep_tasks (
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
 
--- Add buffer settings table
-CREATE TABLE prep_settings (
+-- Create prep settings table if it doesn't exist
+CREATE TABLE IF NOT EXISTS prep_settings (
     id SERIAL PRIMARY KEY,
     restaurant_id INTEGER REFERENCES restaurants(id) ON DELETE CASCADE,
     prep_item_id INTEGER REFERENCES prep_items(id) ON DELETE CASCADE,
@@ -26,3 +33,14 @@ CREATE TABLE prep_settings (
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
     UNIQUE(restaurant_id, prep_item_id)
 );
+
+-- Add trigger for updated_at
+CREATE OR REPLACE TRIGGER update_prep_tasks_timestamp
+    BEFORE UPDATE ON prep_tasks
+    FOR EACH ROW
+    EXECUTE FUNCTION update_updated_at_column();
+
+CREATE OR REPLACE TRIGGER update_prep_settings_timestamp
+    BEFORE UPDATE ON prep_settings
+    FOR EACH ROW
+    EXECUTE FUNCTION update_updated_at_column();

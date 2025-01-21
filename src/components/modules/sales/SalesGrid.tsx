@@ -7,17 +7,23 @@ interface SalesGridProps {
     onDelete?: (id: number) => void;
 }
 
+interface MenuItem {
+    name: string;
+    category: string;
+}
+
+
 export function SalesGrid({ sales, onDelete }: SalesGridProps) {
     const columns = [
         {
             header: 'Item',
-            accessor: 'menuItem' as const,
-            render: (value: SalesEntry['menuItem'], item: SalesEntry) => value ? value.name : '',
+            accessor: 'menuItem' as keyof SalesEntry,
+            render: (value: SalesEntry[keyof SalesEntry], _item: SalesEntry) => value && typeof value === 'object' && 'name' in value ? <span>{(value as MenuItem).name}</span> : '',
         },
         {
             header: 'Category',
-            accessor: 'menuItem.category' as const,
-            render: (value: SalesEntry['menuItem'], item: SalesEntry) => value ? value.category : '',
+            accessor: 'menuItem' as keyof SalesEntry,
+            render: (value: SalesEntry[keyof SalesEntry], _item: SalesEntry) => value && typeof value === 'object' && 'category' in value ? <span>{(value as MenuItem).category}</span> : '',
         },
         {
             header: 'Quantity',
@@ -26,12 +32,12 @@ export function SalesGrid({ sales, onDelete }: SalesGridProps) {
         {
             header: 'Time',
             accessor: 'createdAt' as const,
-            render: (value: Date) => new Date(value).toLocaleTimeString(),
+            render: (value: SalesEntry[keyof SalesEntry], _item: SalesEntry) => value && value instanceof Date ? <span>{new Date(value).toLocaleTimeString()}</span> : null,
         },
         {
             header: 'Actions',
             accessor: 'id' as const,
-            render: (value: number) => onDelete && (
+            render: (value: SalesEntry[keyof SalesEntry], _item: SalesEntry) => typeof value === 'number' && onDelete && (
                 <button
                     onClick={() => onDelete(value)}
                     className="text-red-500 hover:text-red-700"

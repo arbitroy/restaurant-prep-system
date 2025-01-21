@@ -12,7 +12,7 @@ interface PrepCalculatorProps {
 }
 
 export function PrepCalculator({
-    requirements = [], // Provide default empty array
+    requirements,
     onSheetChange,
     onPrint
 }: PrepCalculatorProps) {
@@ -23,10 +23,10 @@ export function PrepCalculator({
         onSheetChange?.(sheet);
     };
 
-    // Safely filter requirements
-    const filteredRequirements = requirements?.filter(
-        req => req && req.sheetName === selectedSheet
-    ) || [];
+    // Ensure requirements array is unique by id
+    const uniqueRequirements = requirements.filter((req, index, self) =>
+        index === self.findIndex((r) => r.id === req.id)
+    );
 
     return (
         <motion.div
@@ -55,10 +55,10 @@ export function PrepCalculator({
             </div>
 
             <div className="space-y-4">
-                {filteredRequirements.length > 0 ? (
-                    filteredRequirements.map((req) => (
+                {uniqueRequirements.length > 0 ? (
+                    uniqueRequirements.map((req) => (
                         <motion.div
-                            key={req.id}
+                            key={`req-${req.id}-${req.name}`}
                             initial={{ opacity: 0 }}
                             animate={{ opacity: 1 }}
                             className="p-4 border rounded-lg"

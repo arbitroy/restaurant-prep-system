@@ -42,7 +42,7 @@ export function RestaurantForm({ onSubmit, onCancel, initialData }: RestaurantFo
                 'success'
             );
             onSubmit();
-        } catch (error) {
+        } catch {
             showToast('Failed to save restaurant', 'error');
         } finally {
             setIsLoading(false);

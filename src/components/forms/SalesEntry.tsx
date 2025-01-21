@@ -62,7 +62,7 @@ export function SalesEntry({ restaurantId, menuItems }: SalesEntryProps) {
             // Reset form
             setSelectedItem('');
             setQuantity('');
-        } catch (error) {
+        } catch {
             setNotification({
                 show: true,
                 message: 'Failed to add sales entry',

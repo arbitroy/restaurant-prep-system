@@ -33,7 +33,7 @@ export function Header() {
                     <Select
                         value={restaurantId.toString()}
                         onChange={(e) => setRestaurantId(Number(e.target.value))}
-                        options={restaurants?.data?.map((r: any) => ({
+                        options={restaurants?.data?.map((r: { id: number; name: string }) => ({
                             value: r.id.toString(),
                             label: r.name
                         })) || []}

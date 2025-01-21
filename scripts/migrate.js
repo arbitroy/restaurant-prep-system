@@ -48,8 +48,8 @@ async function migrate() {
         console.log('Reading migrations from:', migrationsDir);
 
         const files = await fs.readdir(migrationsDir);
-        const migrationFiles: string[] = files
-            .filter((f: string) => f.endsWith('.sql'))
+        const migrationFiles = files
+            .filter((f) => f.endsWith('.sql'))
             .sort();
 
         console.log('Found migration files:', migrationFiles);
@@ -58,11 +58,7 @@ async function migrate() {
         const { rows: executedMigrations } = await pool.query(
             'SELECT name FROM migrations'
         );
-        interface MigrationRow {
-            name: string;
-        }
-
-        const executedMigrationNames: string[] = executedMigrations.map((row: MigrationRow) => row.name);
+        const executedMigrationNames = executedMigrations.map((row) => row.name);
 
         // Execute pending migrations
         for (const file of migrationFiles) {

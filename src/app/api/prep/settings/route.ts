@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { query } from '@/lib/db';
-import { DatabaseError } from '@/types/errors';
 
 export async function GET(request: NextRequest) {
     try {
@@ -31,7 +30,7 @@ export async function GET(request: NextRequest) {
             status: 'success',
             data: rows
         });
-    } catch (error) {
+    } catch {
         return NextResponse.json(
             { error: 'Failed to fetch prep settings' },
             { status: 500 }
@@ -64,7 +63,7 @@ export async function PUT(request: NextRequest) {
             status: 'success',
             data: rows[0]
         });
-    } catch (error) {
+    } catch {
         return NextResponse.json(
             { error: 'Failed to update prep settings' },
             { status: 500 }

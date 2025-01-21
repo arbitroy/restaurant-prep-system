@@ -63,7 +63,7 @@ export function MenuItemForm({
                 'success'
             );
             onSubmit();
-        } catch (error) {
+        } catch {
             showToast('Failed to save menu item', 'error');
         } finally {
             setIsLoading(false);

@@ -4,10 +4,12 @@ import { useState } from 'react';
 import { motion } from 'framer-motion';
 import { PrepForm } from '@/components/forms/PrepForm';
 import { MenuItemForm } from '@/components/forms/MenuItemForm';
+import { PrepItemMapping } from '@/components/modules/prep/PrepItemMapping';
+import { PrepItemMapping as PIM } from '@/types/common';
 import { Button } from '@/components/ui/Button';
 import { Table } from '@/components/ui/Table';
 import { useItems } from '@/hooks/useItems';
-import { PrepItemMapping, MenuItem } from '@/types/common';
+import { MenuItem } from '@/types/common';
 import { useRestaurant } from '@/contexts/RestaurantContext';
 import { useToast } from '@/components/ui/Toast/ToastContext';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
@@ -22,14 +24,14 @@ export default function ItemsPage() {
     const [showPrepForm, setShowPrepForm] = useState(false);
     const [showMenuForm, setShowMenuForm] = useState(false);
     const [editingMenuItem, setEditingMenuItem] = useState<MenuItem | null>(null);
+    const [mappingMenuItem, setMappingMenuItem] = useState<MenuItem | null>(null);
 
     const {
         menuItems,
         prepItems,
-        menuItemsByCategory,
-        prepItemsBySheet,
         isLoadingMenu,
-        isLoadingPrep
+        isLoadingPrep,
+        error
     } = useItems({
         restaurantId
     });
@@ -52,34 +54,49 @@ export default function ItemsPage() {
         }
     });
 
+    const handleShowMapping = (menuItem: MenuItem) => {
+        setMappingMenuItem(menuItem);
+        setViewMode('mapping');
+    };
+
     const menuColumns = [
         { header: 'Name', accessor: 'name' as const },
         { header: 'Category', accessor: 'category' as const },
         {
             header: 'Prep Items',
             accessor: 'prepItems' as const,
-            render: (value: string | number | PrepItemMapping[] | Date | undefined, item: MenuItem) => 
+            render: (value: string | number | PIM[] | Date | undefined, _item: MenuItem) => (
                 <span>{Array.isArray(value) ? value.length : 0}</span>
+            )
         },
         {
             header: 'Actions',
             accessor: 'id' as const,
-            render: (value: string | number | Date | PrepItemMapping[] | undefined, item: MenuItem) => (
+            render: (value: string | number | Date | PIM[] | undefined, item: MenuItem) => (
                 <div className="flex space-x-2">
-                    <Button 
-                        variant="outline" 
+                    <Button
+                        variant="outline"
                         size="sm"
                         onClick={() => setEditingMenuItem(item)}
                     >
                         Edit
                     </Button>
-                    <Button 
-                        variant="outline" 
+                    <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => handleShowMapping(item)}
+                    >
+                        Prep Items
+                    </Button>
+                    <Button
+                        variant="outline"
                         size="sm"
                         onClick={() => {
                             if (window.confirm('Are you sure you want to delete this item?')) {
                                 if (typeof value === 'number') {
                                     deleteMenuItem.mutate(value);
+                                } else {
+                                    showToast('Invalid item ID', 'error');
                                 }
                             }
                         }}
@@ -96,6 +113,14 @@ export default function ItemsPage() {
         { header: 'Unit', accessor: 'unit' as const },
         { header: 'Sheet', accessor: 'sheetName' as const }
     ];
+
+    if (error) {
+        return (
+            <div className="bg-red-50 p-4 rounded-lg">
+                <p className="text-red-800">Error loading items: {error.message}</p>
+            </div>
+        );
+    }
 
     return (
         <div className="space-y-6">
@@ -114,16 +139,15 @@ export default function ItemsPage() {
                     >
                         Prep Items
                     </Button>
-                    <Button
-                        variant={viewMode === 'mapping' ? 'primary' : 'outline'}
-                        onClick={() => setViewMode('mapping')}
-                    >
-                        Mappings
-                    </Button>
                 </div>
             </div>
 
-            {viewMode === 'menu' && (
+            {/* Main content area */}
+            {isLoadingMenu || isLoadingPrep ? (
+                <div className="flex justify-center items-center h-64">
+                    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[#373d20]" />
+                </div>
+            ) : viewMode === 'menu' && !mappingMenuItem ? (
                 <motion.div
                     initial={{ opacity: 0 }}
                     animate={{ opacity: 1 }}
@@ -155,32 +179,30 @@ export default function ItemsPage() {
                                     Add Menu Item
                                 </Button>
                             </div>
-                            {isLoadingMenu ? (
-                                <div className="flex justify-center items-center h-64">
-                                    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900" />
-                                </div>
-                            ) : (
-                                <Table
-                                    data={menuItems}
-                                    columns={menuColumns}
-                                />
-                            )}
+                            <Table
+                                data={menuItems}
+                                columns={menuColumns}
+                            />
                         </div>
                     )}
                 </motion.div>
-            )}
-
-            {viewMode === 'prep' && (
+            ) : viewMode === 'prep' ? (
                 <motion.div
                     initial={{ opacity: 0 }}
                     animate={{ opacity: 1 }}
                 >
                     {showPrepForm ? (
-                        <PrepForm
-                            restaurantId={restaurantId}
-                            onSubmit={() => setShowPrepForm(false)}
-                            onCancel={() => setShowPrepForm(false)}
-                        />
+                        <div className="bg-white rounded-lg shadow-sm p-6">
+                            <h2 className="text-lg font-medium mb-4">Add Prep Item</h2>
+                            <PrepForm
+                                restaurantId={restaurantId}
+                                onSubmit={() => {
+                                    setShowPrepForm(false);
+                                    queryClient.invalidateQueries({ queryKey: ['items'] });
+                                }}
+                                onCancel={() => setShowPrepForm(false)}
+                            />
+                        </div>
                     ) : (
                         <div className="bg-white rounded-lg shadow-sm">
                             <div className="p-4 border-b flex justify-between items-center">
@@ -189,33 +211,46 @@ export default function ItemsPage() {
                                     Add Prep Item
                                 </Button>
                             </div>
-                            {isLoadingPrep ? (
-                                <div className="flex justify-center items-center h-64">
-                                    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900" />
-                                </div>
-                            ) : (
-                                <Table
-                                    data={prepItems}
-                                    columns={prepColumns}
-                                />
-                            )}
+                            <Table
+                                data={prepItems}
+                                columns={prepColumns}
+                            />
                         </div>
                     )}
                 </motion.div>
-            )}
-
-            {viewMode === 'mapping' && (
+            ) : mappingMenuItem ? (
                 <motion.div
                     initial={{ opacity: 0 }}
                     animate={{ opacity: 1 }}
+                    className="bg-white rounded-lg shadow-sm p-6"
                 >
-                    <PrepForm
-                        restaurantId={restaurantId}
-                        onSubmit={() => setShowPrepForm(false)}
-                        onCancel={() => setShowPrepForm(false)}
+                    <div className="flex justify-between items-center mb-6">
+                        <h2 className="text-lg font-medium">Prep Requirements</h2>
+                        <Button
+                            variant="outline"
+                            onClick={() => {
+                                setMappingMenuItem(null);
+                                setViewMode('menu');
+                            }}
+                        >
+                            Back to Menu Items
+                        </Button>
+                    </div>
+                    <PrepItemMapping
+                        menuItem={mappingMenuItem}
+                        prepItems={prepItems}
+                        existingMappings={mappingMenuItem.prepItems?.map(mapping => ({
+                            prepItemId: mapping.prepItemId,
+                            quantity: mapping.quantity
+                        }))}
+                        onSave={() => {
+                            queryClient.invalidateQueries({ queryKey: ['items'] });
+                            setMappingMenuItem(null);
+                            setViewMode('menu');
+                        }}
                     />
                 </motion.div>
-            )}
+            ) : null}
         </div>
     );
 }

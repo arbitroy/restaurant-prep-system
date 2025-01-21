@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { query } from '@/lib/db';
-import { DatabaseError } from '@/types/errors';
+
 
 export async function GET(request: NextRequest) {
     try {

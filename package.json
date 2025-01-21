@@ -15,6 +15,7 @@
   "dependencies": {
     "@tanstack/react-query": "^5.64.1",
     "@types/lodash": "^4.17.14",
+    "chalk": "^5.4.1",
     "csv-parse": "^5.6.0",
     "date-fns": "^4.1.0",
     "framer-motion": "^11.18.1",
@@ -35,6 +36,8 @@
     "@types/react": "^19",
     "@types/react-dom": "^19",
     "dotenv": "^16.4.7",
+    "eslint": "9.18.0",
+    "eslint-config-next": "15.1.5",
     "pg": "^8.13.1",
     "postcss": "^8",
     "tailwindcss": "^3.4.1",

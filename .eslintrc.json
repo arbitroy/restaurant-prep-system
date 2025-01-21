@@ -1,0 +1,24 @@
+{
+  "extends": [
+    "next/core-web-vitals",
+    "plugin:@typescript-eslint/recommended"
+  ],
+  "rules": {
+    // Disable no-explicit-any warnings if you need to use any
+    "@typescript-eslint/no-explicit-any": "warn",
+    
+    // Allow unused vars when prefixed with _
+    "@typescript-eslint/no-unused-vars": ["error", { 
+      "argsIgnorePattern": "^_",
+      "varsIgnorePattern": "^_"
+    }],
+    
+    // Handle React display names
+    "react/display-name": "off",
+    
+    // Allow unescaped entities in specific cases
+    "react/no-unescaped-entities": ["error", {
+      "forbid": [">", "}"]
+    }]
+  }
+}

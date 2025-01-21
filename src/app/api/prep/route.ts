@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { query } from '@/lib/db';
 import { DatabaseError } from '@/types/errors';
+import { PrepRequirementData, PrepSheetData, ApiResponse } from '@/types/api';
 
 export async function POST(request: NextRequest) {
     try {
@@ -54,32 +55,89 @@ export async function GET(request: NextRequest) {
     try {
         const { searchParams } = new URL(request.url);
         const restaurantId = searchParams.get('restaurantId');
+        const date = searchParams.get('date');
+        const sheetName = searchParams.get('sheetName');
 
-        if (!restaurantId) {
+        if (!restaurantId || !date) {
             return NextResponse.json(
-                { error: 'Restaurant ID is required' },
+                { error: 'Restaurant ID and date are required' },
                 { status: 400 }
             );
         }
 
-        const { rows } = await query({
-            text: `
-                SELECT id, name, unit, sheet_name, created_at, updated_at
-                FROM prep_items
-                WHERE restaurant_id = $1
-                ORDER BY sheet_name, name
-            `,
-            values: [restaurantId]
+        let sqlQuery = `
+            SELECT * FROM calculate_prep_requirements($1, $2::DATE)
+        `;
+        const values: (string | number)[] = [
+            parseInt(restaurantId),
+            date
+        ];
+
+        if (sheetName) {
+            sqlQuery += ` WHERE sheet_name = $3`;
+            values.push(sheetName);
+        }
+
+        sqlQuery += ` ORDER BY sheet_name, name`;
+
+        const { rows } = await query<PrepRequirementData>({
+            text: sqlQuery,
+            values
         });
 
-        return NextResponse.json({
+        // Group by sheet
+        const sheets: PrepSheetData[] = rows.reduce((acc: PrepSheetData[], row) => {
+            const sheet = acc.find(s => s.sheetName === row.sheet_name);
+            if (sheet) {
+                sheet.items.push({
+                    id: row.id,
+                    name: row.name,
+                    unit: row.unit,
+                    quantity: Number(row.quantity),
+                    bufferQuantity: Number(row.buffer_quantity),
+                    minimumQuantity: Number(row.minimum_quantity),
+                    sheet_name: row.sheet_name,
+                    buffer_quantity: function (): number | undefined {
+                        throw new Error('Function not implemented.');
+                    },
+                    minimum_quantity: function (): number | undefined {
+                        throw new Error('Function not implemented.');
+                    }
+                });
+            } else {
+                acc.push({
+                    sheetName: row.sheet_name,
+                    date,
+                    items: [{
+                        id: row.id,
+                        name: row.name,
+                        unit: row.unit,
+                        quantity: Number(row.quantity),
+                        bufferQuantity: Number(row.buffer_quantity),
+                        minimumQuantity: Number(row.minimum_quantity),
+                        sheet_name: row.sheet_name,
+                        buffer_quantity: function (): number | undefined {
+                            throw new Error('Function not implemented.');
+                        },
+                        minimum_quantity: function (): number | undefined {
+                            throw new Error('Function not implemented.');
+                        }
+                    }]
+                });
+            }
+            return acc;
+        }, []);
+
+        const response: ApiResponse<PrepSheetData[]> = {
             status: 'success',
-            data: rows
-        });
+            data: sheets
+        };
+
+        return NextResponse.json(response);
     } catch (error) {
-        console.error('Error fetching prep items:', error);
+        console.error('Error calculating prep requirements:', error);
         return NextResponse.json(
-            { error: 'Failed to fetch prep items' },
+            { status: 'error', error: 'Failed to calculate prep requirements' },
             { status: 500 }
         );
     }

@@ -1,9 +1,9 @@
-import { QueryResult, QueryResultRow  } from 'pg';
+import { PoolClient, QueryResult, QueryResultRow  } from 'pg';
 import pool from './pool';
 
 type QueryConfig = {
     text: string;
-    values?: any[];
+    values?: (string | number | boolean | null | Date)[];
 };
 
 export async function query<T extends QueryResultRow>(config: QueryConfig): Promise<QueryResult<T>> {
@@ -17,7 +17,7 @@ export async function query<T extends QueryResultRow>(config: QueryConfig): Prom
 }
 
 export async function transaction<T>(
-    callback: (client: any) => Promise<T>
+    callback: (client: PoolClient) => Promise<T>
 ): Promise<T> {
     const client = await pool.connect();
     try {

@@ -1,13 +1,10 @@
 'use client';
 
 import React, { useState } from 'react';
-import { motion } from 'framer-motion';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import { Select } from '@/components/ui/Select';
 import { useToast } from '@/components/ui/Toast/ToastContext';
-import { MenuItem, PrepItem } from '@/types/common';
-import { usePrep } from '@/hooks/usePrep';
 import { UNITS, PREP_SHEETS } from '@/lib/constants/prep-items';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 
@@ -16,7 +13,12 @@ interface PrepFormProps {
     onSubmit?: () => void;
     onCancel?: () => void;
 }
-
+interface PrepFormData {
+    name: string;
+    unit: string;
+    sheetName: string;
+    restaurantId: number;
+}
 export function PrepForm({ 
     restaurantId, 
     onSubmit,
@@ -35,7 +37,7 @@ export function PrepForm({
     });
 
     const addPrepItem = useMutation({
-        mutationFn: async (data: any) => {
+        mutationFn: async (data: PrepFormData) => {
             const response = await fetch('/api/items/prep', {
                 method: 'POST',
                 headers: {
@@ -65,7 +67,7 @@ export function PrepForm({
                 sheetName: PREP_SHEETS[0]
             });
         },
-        onError: (error: any) => {
+        onError: (error: Error) => {
             showToast(error.message || 'Failed to add prep item', 'error');
         }
     });
@@ -76,7 +78,7 @@ export function PrepForm({
             showToast('Please fill in all fields', 'error');
             return;
         }
-        addPrepItem.mutate(formData);
+        addPrepItem.mutate({ ...formData, restaurantId });
     };
 
     return (

@@ -9,16 +9,6 @@ import { useItems } from '@/hooks/useItems';
 import { useRestaurant } from '@/contexts/RestaurantContext';
 import { useToast } from '@/components/ui/Toast/ToastContext';
 import { TopItem } from '@/types/sales';
-import {
-    LineChart,
-    Line,
-    XAxis,
-    YAxis,
-    CartesianGrid,
-    Tooltip,
-    Legend,
-    ResponsiveContainer
-} from 'recharts';
 
 export default function DashboardPage() {
     const { restaurantId } = useRestaurant();

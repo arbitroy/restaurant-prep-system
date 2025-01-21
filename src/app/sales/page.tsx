@@ -89,7 +89,14 @@ export default function SalesPage() {
                         </div>
                     ) : (
                         <SalesGrid
-                            sales={dailySales?.items || []}
+                            sales={(dailySales?.items || []).map(item => ({
+                                ...item,
+                                restaurantId,
+                                date: selectedDate,
+                                id: item.menuItemId,
+                                createdAt: new Date(),
+                                updatedAt: new Date()
+                            }))}
                             onDelete={(id) => {
                                 if (window.confirm('Are you sure you want to delete this entry?')) {
                                     deleteSales.mutate(id);
