@@ -1,6 +1,6 @@
 import { useQuery } from '@tanstack/react-query';
-import { MenuItem, PrepItem } from '@/types/common';
-import { ApiResponse } from '@/types/api';
+import { ApiResponse, MenuItem} from '@/types/common';
+import { PrepItem } from '@/types/prep';
 
 interface UseItemsOptions {
     restaurantId: number;

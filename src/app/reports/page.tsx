@@ -15,7 +15,8 @@ import {
 } from 'recharts';
 
 import { formatDataForExport, exportCSV, exportXLSX } from '@/lib/utils/reportUtils';
-import { ReportData, ApiResponse } from '@/types/api';
+import { ReportData } from '@/types/api';
+import { ApiResponse } from '@/types/common';
 
 const COLORS = ['#373d20', '#717744', '#abac7f'] as const;
 const REPORT_TYPES = ['sales', 'items', 'trends'] as const;

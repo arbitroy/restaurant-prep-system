@@ -1,4 +1,3 @@
-// src/lib/db/pool.ts
 import { Pool, PoolConfig } from 'pg';
 import * as dotenv from 'dotenv';
 
@@ -11,9 +10,10 @@ const config: PoolConfig = {
   host: process.env.POSTGRES_HOST,
   port: parseInt(process.env.POSTGRES_PORT || '5432'),
   database: process.env.POSTGRES_DATABASE,
-  ssl: process.env.NODE_ENV === 'production' 
-    ? { rejectUnauthorized: false }
-    : false,
+  ssl: false,
+  // ssl: process.env.NODE_ENV === 'production' 
+  //   ? { rejectUnauthorized: false }
+  //   : false,
   max: 20,
   idleTimeoutMillis: 30000,
   connectionTimeoutMillis: 2000,

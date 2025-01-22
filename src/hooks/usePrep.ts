@@ -1,8 +1,7 @@
-// src/hooks/usePrep.ts
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { PrepRequirement, PrepItem } from '@/types/prep';
-import { ApiResponse } from '@/types/api';
+import { PrepItemBase, PrepOrderUpdate } from '@/types/prep';
+import { ApiResponse } from '@/types/common';
 
 interface UsePrepOptions {
     restaurantId: number;
@@ -15,12 +14,12 @@ export function usePrep({
     initialDate = new Date(),
     bufferPercentage = 50
 }: UsePrepOptions) {
+    const queryClient = useQueryClient();
     const [selectedDate, setSelectedDate] = useState(initialDate);
     const [selectedSheet, setSelectedSheet] = useState<string | undefined>();
-    const queryClient = useQueryClient();
 
     // Fetch prep items
-    const { data: prepItemsData, isLoading: isLoadingPrepItems } = useQuery<ApiResponse<PrepItem[]>>({
+    const { data: prepItemsData, isLoading: isLoadingPrepItems } = useQuery<ApiResponse<PrepItemBase[]>>({
         queryKey: ['prepItems', restaurantId],
         queryFn: async () => {
             const response = await fetch(`/api/items/prep?restaurantId=${restaurantId}`);
@@ -65,17 +64,28 @@ export function usePrep({
     });
 
     // Update prep item order mutation
-    const updatePrepItemOrder = useMutation({
-        mutationFn: async (items: PrepRequirement[]) => {
+    const updatePrepItemOrderMutation = useMutation({
+        mutationFn: async (items: PrepOrderUpdate[]) => {
+            const orderUpdates = items.map(({ id, order, sheetName }) => ({
+                id,
+                order,
+                sheetName
+            }));
+
             const response = await fetch('/api/prep/order', {
                 method: 'PUT',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ restaurantId, items })
+                body: JSON.stringify({ items: orderUpdates })
             });
-            if (!response.ok) throw new Error('Failed to update item order');
+
+            if (!response.ok) {
+                throw new Error('Failed to update item order');
+            }
             return response.json();
         },
         onSuccess: () => {
+            // Invalidate and refetch queries that are affected by this mutation
+            queryClient.invalidateQueries({ queryKey: ['prepItems', restaurantId] });
             queryClient.invalidateQueries({ queryKey: ['prep-sheets', restaurantId] });
         }
     });
@@ -83,7 +93,7 @@ export function usePrep({
     // Ensure we have valid data structures even when loading
     const sanitizedPrepSheets = prepSheets?.data || [];
     const sanitizedHistoricalSales = historicalSales?.data || [];
-    const sanitizedPrepItems = (prepItemsData?.data || []) as PrepItem[];
+    const sanitizedPrepItems = (prepItemsData?.data || []) as PrepItemBase[];
 
     const error = historyError || prepError;
 
@@ -97,6 +107,7 @@ export function usePrep({
         setSelectedDate,
         selectedSheet,
         setSelectedSheet,
-        updatePrepItemOrder: updatePrepItemOrder.mutateAsync
+        updatePrepItemOrder: updatePrepItemOrderMutation.mutateAsync,
+        isUpdatingOrder: updatePrepItemOrderMutation.isPending
     };
 }

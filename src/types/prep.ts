@@ -1,74 +1,82 @@
+// Common status type for prep items
+export type PrepStatus = 'pending' | 'in_progress' | 'completed';
 
+// Base interface for common prep item properties
 export interface PrepItemBase {
     id: number;
     name: string;
-    unit: string;
     sheetName: string;
     order?: number;
+    createdAt?: Date;
+    updatedAt?: Date;
+    unit: string;    // Moved to base as it's commonly used
 }
 
-export interface PrepRequirementData {
-    prep_item_id: number;
-    name: string;
-    unit: string;
-    sheet_name: string;
-    required_quantity: number;
-    buffer_quantity?: number;
-    minimum_quantity?: number;
+// Full prep item interface with restaurant-specific properties
+export interface PrepItem extends PrepItemBase {
+    restaurantId: number;
+    bufferPercentage?: number;
+    minimumQuantity?: number;
 }
 
-export interface PrepRequirement {
+// Interface for order updates sent to the API
+export interface PrepOrderUpdate {
     id: number;
-    name: string;
-    unit: string;
+    order: number;
     sheetName: string;
+}
+
+// Interface for prep requirements
+export interface PrepRequirement extends PrepItemBase {
     quantity: number;
     bufferQuantity?: number;
     minimumQuantity?: number;
-    status?: 'pending' | 'in_progress' | 'completed';
+    status?: PrepStatus;
     notes?: string;
     completedQuantity?: number;
 }
 
+// Interface for daily prep calculations
+export interface PrepCalculation {
+    itemId: number;
+    name: string;
+    unit: string;
+    dailyRequirements: PrepDailyRequirement[];
+    totalRequired: number;
+    bufferPercentage: number;
+}
+
+export interface PrepDailyRequirement {
+    day: string;
+    quantity: number;
+    percentage: number;
+}
+
+// Interface for prep tasks
+export interface PrepTask {
+    id: number;
+    prepItemId: number;
+    requiredQuantity: number;
+    completedQuantity?: number;
+    status: PrepStatus;
+    assignedTo?: string;
+    notes?: string;
+    date: Date;
+}
+
+// Interface for prep sheet data
 export interface PrepSheet {
     sheetName: string;
     date: Date;
     items: PrepRequirement[];
 }
 
-export interface PrepTask {
-    id: number;
-    prepItemId: number;
-    requiredQuantity: number;
-    completedQuantity?: number;
-    status: 'pending' | 'in_progress' | 'completed';
-    assignedTo?: string;
-    notes?: string;
-}
-
-export interface PrepItemOrder {
-    id: number;
-    order: number;
-    sheetName: string;
-}
-
+// Interface for historical usage data
 export interface HistoricalUsage {
     prepItemId: number;
-    date: string;
-    quantity: number;
-    itemName: string;
-    unit: string;
-}
-
-export interface PrepCalculation {
     itemId: number;
     name: string;
+    date: Date;
+    quantity: number;
     unit: string;
-    dailyRequirements: Array<{
-        day: string;
-        quantity: number;
-        percentage: number;
-    }>;
-    totalRequired: number;
-    bufferPercentage: number;
 }

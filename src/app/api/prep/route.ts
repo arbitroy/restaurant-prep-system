@@ -1,7 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { query } from '@/lib/db';
 import { DatabaseError } from '@/types/errors';
-import { PrepRequirementData, PrepSheetData, ApiResponse } from '@/types/api';
+import { ApiResponse } from '@/types/common';
+import { PrepRequirement, PrepSheet } from '@/types/prep';
+
 
 export async function POST(request: NextRequest) {
     try {
@@ -80,55 +82,43 @@ export async function GET(request: NextRequest) {
 
         sqlQuery += ` ORDER BY sheet_name, name`;
 
-        const { rows } = await query<PrepRequirementData>({
+        const { rows } = await query<PrepRequirement>({
             text: sqlQuery,
             values
         });
 
         // Group by sheet
-        const sheets: PrepSheetData[] = rows.reduce((acc: PrepSheetData[], row) => {
-            const sheet = acc.find(s => s.sheetName === row.sheet_name);
+        const sheets: PrepSheet[] = rows.reduce((acc: PrepSheet[], row) => {
+            const sheet = acc.find(s => s.sheetName === row.sheetName);
             if (sheet) {
                 sheet.items.push({
                     id: row.id,
                     name: row.name,
                     unit: row.unit,
                     quantity: Number(row.quantity),
-                    bufferQuantity: Number(row.buffer_quantity),
-                    minimumQuantity: Number(row.minimum_quantity),
-                    sheet_name: row.sheet_name,
-                    buffer_quantity: function (): number | undefined {
-                        throw new Error('Function not implemented.');
-                    },
-                    minimum_quantity: function (): number | undefined {
-                        throw new Error('Function not implemented.');
-                    }
+                    bufferQuantity: Number(row.bufferQuantity),
+                    minimumQuantity: Number(row.minimumQuantity),
+                    sheetName: row.sheetName
                 });
             } else {
                 acc.push({
-                    sheetName: row.sheet_name,
-                    date,
+                    sheetName: row.sheetName,
+                    date: new Date(date),
                     items: [{
                         id: row.id,
                         name: row.name,
                         unit: row.unit,
                         quantity: Number(row.quantity),
-                        bufferQuantity: Number(row.buffer_quantity),
-                        minimumQuantity: Number(row.minimum_quantity),
-                        sheet_name: row.sheet_name,
-                        buffer_quantity: function (): number | undefined {
-                            throw new Error('Function not implemented.');
-                        },
-                        minimum_quantity: function (): number | undefined {
-                            throw new Error('Function not implemented.');
-                        }
+                        bufferQuantity: Number(row.bufferQuantity),
+                        minimumQuantity: Number(row.minimumQuantity),
+                        sheetName: row.sheetName
                     }]
                 });
             }
             return acc;
         }, []);
 
-        const response: ApiResponse<PrepSheetData[]> = {
+        const response: ApiResponse<PrepSheet[]> = {
             status: 'success',
             data: sheets
         };

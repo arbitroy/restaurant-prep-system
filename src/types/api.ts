@@ -1,21 +1,23 @@
+
 export interface PrepQuery {
     restaurantId: number;
     date: Date;
     sheetName?: string;
 }
-export interface ApiResponse<T> {
-    status: 'success' | 'error';
-    data?: T;
-    error?: string;
+
+export interface SalesQuery {
+    restaurantId: number;
+    date?: Date;
+    startDate?: Date;
+    endDate?: Date;
+    type?: 'daily' | 'analytics';
 }
 
-export interface PrepItemData {
-    id: number;
-    name: string;
-    unit: string;
-    sheet_name: string;
-    buffer_percentage?: number;
-    minimum_quantity?: number;
+export interface ReportQuery {
+    restaurantId: number;
+    startDate: Date;
+    endDate: Date;
+    type: 'sales' | 'items' | 'trends';
 }
 
 export interface SalesData {
@@ -66,26 +68,16 @@ export interface ReportData {
 }
 
 export interface PrepRequirementData {
-    buffer_quantity(buffer_quantity: any): number | undefined;
-    minimum_quantity(minimum_quantity: any): number | undefined;
-    id: number;
-    name: string;
+    prep_item_id: number;
+    prep_name: string;
     unit: string;
     sheet_name: string;
+    avg_quantity: number;
+    prep_quantity: number;
+    day_of_week: number;
     quantity: number;
-    bufferQuantity?: number;
-    minimumQuantity?: number;
-}
-
-export interface PrepSheetData {
-    sheetName: string;
-    date: string;
-    items: PrepRequirementData[];
-}
-
-// Type for formatDataForExport function
-export interface ExportableData {
-    summary?: Record<string, number | string>;
-    daily?: SalesData[];
-    items?: Array<Record<string, unknown>>;
+    buffer_quantity: () => number;
+    minimum_quantity: () => number;
+    id: number;
+    name: string;
 }

@@ -1,8 +1,6 @@
-
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { SalesEntry } from '@/types/common';
-import { DailySales, SalesAnalytics } from '@/types/sales';
-import { ApiResponse } from '@/types/api';
+import { DailySales, SalesAnalytics, SalesEntry } from '@/types/sales';
+import { ApiResponse } from '@/types/common';
 import { useState } from 'react';
 
 interface UseSalesOptions {
@@ -39,7 +37,7 @@ export function useSales({ restaurantId, initialDate = new Date() }: UseSalesOpt
         queryKey: ['sales-analytics', restaurantId, selectedDate],
         queryFn: async () => {
             const startDate = new Date(selectedDate);
-            startDate.setDate(startDate.getDate() - 30); // Last 30 days by default
+            startDate.setDate(startDate.getDate() - 30);
 
             const response = await fetch(
                 `/api/sales?restaurantId=${restaurantId}&type=analytics&startDate=${startDate.toISOString()}&endDate=${selectedDate.toISOString()}`
@@ -52,7 +50,7 @@ export function useSales({ restaurantId, initialDate = new Date() }: UseSalesOpt
     // Add sales entry mutation
     const {
         mutate: addSalesEntry,
-        isLoading: isAddingEntry,
+        isPending: isAddingEntry,
         error: addError
     } = useMutation({
         mutationFn: async (entry: Omit<SalesEntry, 'id' | 'createdAt' | 'updatedAt'>) => {
@@ -67,13 +65,14 @@ export function useSales({ restaurantId, initialDate = new Date() }: UseSalesOpt
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: ['sales', restaurantId, selectedDate] });
             queryClient.invalidateQueries({ queryKey: ['sales-analytics', restaurantId, selectedDate] });
-            
         }
     });
 
     return {
         dailySales: dailySales?.data,
         salesAnalytics: analyticsData?.data,
+        isLoadingDaily,
+        isLoadingAnalytics,
         isLoading: isLoadingDaily || isLoadingAnalytics,
         error: dailyError || analyticsError,
         addSalesEntry,

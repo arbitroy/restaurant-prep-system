@@ -1,6 +1,7 @@
 import { motion } from 'framer-motion';
 import { Table } from '@/components/ui/Table';
-import { SalesEntry } from '@/types/common';
+import { SalesEntry } from '@/types/sales';
+
 
 interface SalesGridProps {
     sales: SalesEntry[];

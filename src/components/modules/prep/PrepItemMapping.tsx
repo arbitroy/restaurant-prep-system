@@ -4,7 +4,8 @@ import { Button } from '@/components/ui/Button';
 import { Select } from '@/components/ui/Select';
 import { Input } from '@/components/ui/Input';
 import { useToast } from '@/components/ui/Toast/ToastContext';
-import { MenuItem, PrepItem } from '@/types/common';
+import { MenuItem } from '@/types/common';
+import { PrepItem } from '@/types/prep';
 
 interface PrepItemMappingProps {
     menuItem: MenuItem;

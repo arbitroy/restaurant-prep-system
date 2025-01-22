@@ -13,6 +13,7 @@ import { MenuItem } from '@/types/common';
 import { useRestaurant } from '@/contexts/RestaurantContext';
 import { useToast } from '@/components/ui/Toast/ToastContext';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { PrepItem } from '@/types/prep';
 
 type ViewMode = 'menu' | 'prep' | 'mapping';
 
@@ -109,9 +110,9 @@ export default function ItemsPage() {
     ];
 
     const prepColumns = [
-        { header: 'Name', accessor: 'name' as const },
-        { header: 'Unit', accessor: 'unit' as const },
-        { header: 'Sheet', accessor: 'sheetName' as const }
+        { header: 'Name', accessor: 'name' as keyof PrepItem },
+        { header: 'Unit', accessor: 'unit' as keyof PrepItem },
+        { header: 'Sheet', accessor: 'sheetName' as keyof PrepItem }
     ];
 
     if (error) {

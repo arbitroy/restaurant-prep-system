@@ -1,12 +1,11 @@
-// src/components/forms/PrepSettingsForm.tsx
 import { useState } from 'react';
 import { motion } from 'framer-motion';
 import { Input } from '@/components/ui/Input';
 import { Button } from '@/components/ui/Button';
 import { Select } from '@/components/ui/Select';
 import { useToast } from '@/components/ui/Toast/ToastContext';
-import { PrepItem } from '@/types/common';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { PrepItem } from '@/types/prep';
 
 interface PrepSettingsFormProps {
     restaurantId: number;

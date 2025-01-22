@@ -1,9 +1,8 @@
 import { query, transaction } from '@/lib/db';
-import { ApiResponse } from '@/types/api';
-import { SalesEntry } from '@/types/common';
-import { DailySales, SalesAnalytics } from '@/types/sales';
+import { DailySales, SalesAnalytics, SalesEntry } from '@/types/sales';
 import { DatabaseError } from '@/types/errors';
 import { QueryResultRow } from 'pg';
+import { ApiResponse } from '@/types/common';
 
 // Interface for the raw query result
 interface SalesQueryResult extends QueryResultRow {
@@ -62,51 +61,40 @@ export class SalesService {
         try {
             const { rows } = await query<SalesQueryResult>({
                 text: `
-          SELECT 
-            s.id,
-            s.restaurant_id,
-            s.menu_item_id,
-            s.quantity,
-            s.date,
-            s.created_at,
-            s.updated_at,
-            m.name as menu_item_name,
-            m.category
-          FROM sales s
-          JOIN menu_items m ON s.menu_item_id = m.id
-          WHERE 
-            s.restaurant_id = $1 
-            AND s.date = $2
-        `,
+              SELECT 
+                s.id,
+                s.restaurant_id,
+                s.menu_item_id,
+                s.quantity,
+                s.date,
+                s.created_at,
+                s.updated_at,
+                m.name as menu_item_name,
+                m.category
+              FROM sales s
+              JOIN menu_items m ON s.menu_item_id = m.id
+              WHERE 
+                s.restaurant_id = $1 
+                AND s.date = $2
+            `,
                 values: [restaurantId, date]
             });
-
-            // Transform the raw query results into SalesEntry objects
-            const salesEntries: SalesEntry[] = rows.map(row => ({
-                id: row.id,
-                restaurantId: row.restaurant_id,
+    
+            // Transform the raw query results into SalesItem objects
+            const salesItems = rows.map(row => ({
                 menuItemId: row.menu_item_id,
+                name: row.menu_item_name,
                 quantity: row.quantity,
-                date: row.date,
-                createdAt: row.created_at,
-                updatedAt: row.updated_at,
-                menuItem: {
-                    id: row.menu_item_id,
-                    name: row.menu_item_name,
-                    category: row.category,
-                    restaurantId: row.restaurant_id,
-                    createdAt: row.created_at,
-                    updatedAt: row.updated_at
-                }
+                category: row.category
             }));
-
-            const total = salesEntries.reduce((sum, entry) => sum + entry.quantity, 0);
-
+    
+            const total = salesItems.reduce((sum, item) => sum + item.quantity, 0);
+    
             return {
                 status: 'success',
                 data: {
                     date,
-                    items: salesEntries,
+                    items: salesItems,
                     total
                 }
             };
@@ -179,7 +167,8 @@ export class SalesService {
                     averageDaily: Number(result.avg_daily) || 0,
                     averageWeekly: Number(result.avg_weekly) || 0,
                     trendPercentage: 0, // Calculate trend based on previous period
-                    topItems: result.top_items || []
+                    topItems: result.top_items || [],
+                    salesByCategory: []
                 }
             };
         } catch (error) {

@@ -16,9 +16,9 @@ import { useToast } from '@/components/ui/Toast/ToastContext';
 import { useQuery } from '@tanstack/react-query';
 import type {
     PrepSheet as PrepSheetType,
-    PrepItemOrder,
     PrepTask,
-    HistoricalUsage
+    HistoricalUsage,
+    PrepItemBase
 } from '@/types/prep';
 
 type PrepView = 'calculator' | 'tasks' | 'organize' | 'print' | 'settings';
@@ -40,7 +40,7 @@ interface PrepContentProps {
     bufferPercentage: number;
     setSelectedSheet: (sheet: string) => void;
     handleBufferChange: (value: number) => void;
-    handleOrderChange: (items: PrepItemOrder[]) => Promise<void>;
+    handleOrderChange: (items: PrepItemBase[]) => Promise<void>;
     handlePrint: () => void;
     printRef: React.RefObject<HTMLDivElement>;
 }
@@ -110,12 +110,17 @@ function PrepContent({
                     onPrint={() => handlePrint()}
                 />
                 <div className="mt-6">
-                    <DailyPrepBreakdown
-                        historicalSales={historicalSales}
-                        currentDate={selectedDate}
-                        onBufferChange={handleBufferChange}
-                        initialBuffer={bufferPercentage}
-                    />
+                <DailyPrepBreakdown
+                historicalSales={historicalSales.map(sale => ({
+                    ...sale,
+                    date: new Date(sale.date),
+                    itemId: sale.prepItemId,
+                    name: sale.name,
+                }))}
+                currentDate={selectedDate}
+                onBufferChange={handleBufferChange}
+                initialBuffer={bufferPercentage}
+            />
                 </div>
             </motion.div>
         );
@@ -153,7 +158,8 @@ function PrepContent({
                     id: item.id,
                     name: item.name,
                     sheetName: sheet.sheetName,
-                    order: item.order || 0
+                    order: item.order || 0,
+                    unit: item.unit
                 })))}
                 onOrderChange={handleOrderChange}
             />
@@ -266,9 +272,16 @@ export default function PrepPage(): JSX.Element {
         showToast(`Buffer percentage updated to ${value}%`, 'success');
     };
 
-    const handleOrderChange = async (items: PrepItemOrder[]): Promise<void> => {
+    const handleOrderChange = async (items: PrepItemBase[]): Promise<void> => {
         try {
-            await updatePrepItemOrder(items);
+            // Convert PrepItemOrganizer to PrepOrderUpdate
+            const updates = items.map(({ id, order, sheetName }) => ({
+                id,
+                order: order ?? 0, // Provide a default value of 0 if order is undefined
+                sheetName
+            }));
+            
+            await updatePrepItemOrder(updates);
             showToast('Prep item order updated successfully', 'success');
         } catch (error) {
             showToast('Failed to update item order', 'error');
@@ -295,7 +308,10 @@ export default function PrepPage(): JSX.Element {
                     <h2 className="text-lg font-medium mb-4">Prep Settings</h2>
                     <PrepSettingsForm
                         restaurantId={restaurantId}
-                        prepItems={prepItems}
+                        prepItems={prepItems.map(item => ({
+                            ...item,
+                            restaurantId
+                        }))}
                         onClose={() => setShowSettings(false)}
                     />
                 </motion.div>

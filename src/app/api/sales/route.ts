@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { SalesService } from '@/services/sales.service';
 import { DatabaseError } from '@/types/errors';
-import { SalesEntry } from '@/types/common';
+import { SalesEntry } from '@/types/sales';
+
 
 export async function POST(request: NextRequest) {
     try {

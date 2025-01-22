@@ -1,5 +1,6 @@
 import { query } from '@/lib/db';
-import { PrepQuery, ApiResponse, PrepRequirementData } from '@/types/api';
+import { PrepQuery, PrepRequirementData } from '@/types/api';
+import { ApiResponse } from '@/types/common';
 import { PrepRequirement, PrepSheet } from '@/types/prep';
 import { DatabaseError } from '@/types/errors';
 

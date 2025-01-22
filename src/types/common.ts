@@ -1,3 +1,7 @@
+import { PrepItem } from "./prep";
+
+
+// Base entity interface for all database models
 export interface BaseEntity {
     id: number;
     createdAt: Date;
@@ -15,29 +19,32 @@ export interface MenuItem extends BaseEntity {
     prepItems?: PrepItemMapping[];
 }
 
-export interface PrepItem {
-    id: number;
-    restaurantId: number;
-    name: string;
-    unit: string;
-    sheetName: string;
-    order?: number;
-    createdAt: Date;
-    updatedAt: Date;
-}
-
 export interface PrepItemMapping extends BaseEntity {
     menuItemId: number;
     prepItemId: number;
     quantity: number;
     menuItem?: MenuItem;
-    prepItem?: PrepItem;
+    prepItem?: PrepItem;  // Reference to prep types
 }
 
-export interface SalesEntry extends BaseEntity {
+// Common API response type
+export interface ApiResponse<T> {
+    status: 'success' | 'error';
+    data?: T;
+    error?: string;
+}
+
+// Common query parameters
+export interface QueryParams {
     restaurantId: number;
-    menuItemId: number;
-    quantity: number;
-    date: Date;
-    menuItem?: MenuItem;
+    startDate?: Date;
+    endDate?: Date;
+    category?: string;
+    sheetName?: string;
+}
+
+// Common date range type
+export interface DateRange {
+    startDate: Date;
+    endDate: Date;
 }

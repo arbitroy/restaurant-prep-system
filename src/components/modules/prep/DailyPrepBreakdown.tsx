@@ -1,19 +1,15 @@
-import React, { useState, useCallback, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { motion } from 'framer-motion';
 import { calculateDailyPrep, type PrepCalculation } from '@/lib/utils/prepCalculations';
 import _ from 'lodash';
 import { useToast } from '@/components/ui/Toast/ToastContext';
+import { HistoricalUsage } from '@/types/prep';
 
-interface HistoricalSale {
-    date: Date;
-    itemId: number;
-    name: string;
-    quantity: number;
-    unit: string;
-}
+
+
 
 interface DailyPrepBreakdownProps {
-    historicalSales: HistoricalSale[];
+    historicalSales: HistoricalUsage[];
     currentDate: Date;
     onBufferChange: (value: number) => void;
     initialBuffer?: number;
@@ -29,42 +25,42 @@ export default function DailyPrepBreakdown({
     const [calculations, setCalculations] = useState<PrepCalculation[]>([]);
     const { showToast } = useToast();
 
-    // Debounced function to update parent component
-    const debouncedBufferChange = useCallback(
-        _.debounce((value: number) => {
-            onBufferChange(value);
-            showToast(`Buffer updated to ${value}%`, 'success');
-        }, 500),
-        [onBufferChange, showToast]
-    );
 
-    // Update local buffer when initialBuffer changes
+    // Create a ref for the debounced function
+    const debouncedFn = useRef(_.debounce((value: number) => {
+        onBufferChange(value);
+        showToast(`Buffer updated to ${value}%`, 'success');
+    }, 500));
+
+    // Update local buffer and trigger debounced change
+    const handleBufferChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+        const value = parseInt(e.target.value);
+        setLocalBufferPercentage(value);
+        debouncedFn.current(value);
+    };
+
+    // Update local buffer when initial buffer changes
     useEffect(() => {
         setLocalBufferPercentage(initialBuffer);
     }, [initialBuffer]);
 
+    // Cleanup debounced function
+    useEffect(() => {
+        const currentFn = debouncedFn.current;
+        return () => {
+            currentFn.cancel();
+        };
+    }, []);
     // Update calculations when buffer or historical sales change
     useEffect(() => {
         const newCalculations = calculateDailyPrep(
-            historicalSales, 
-            currentDate, 
+            historicalSales,
+            currentDate,
             localBufferPercentage
         );
         setCalculations(newCalculations);
     }, [historicalSales, currentDate, localBufferPercentage]);
 
-    // Cleanup debounced function
-    useEffect(() => {
-        return () => {
-            debouncedBufferChange.cancel();
-        };
-    }, [debouncedBufferChange]);
-
-    const handleBufferChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-        const value = parseInt(e.target.value);
-        setLocalBufferPercentage(value);
-        debouncedBufferChange(value);
-    };
 
     return (
         <div className="space-y-6">
@@ -88,7 +84,7 @@ export default function DailyPrepBreakdown({
             <div className="grid grid-cols-1 gap-6">
                 {calculations.map((calc) => {
                     const itemKey = `prep-item-${calc.itemId}`;
-                    
+
                     return (
                         <motion.div
                             key={itemKey}
@@ -103,11 +99,10 @@ export default function DailyPrepBreakdown({
                                     return (
                                         <div
                                             key={dayKey}
-                                            className={`p-2 rounded ${
-                                                day.percentage > 0 
-                                                    ? 'bg-[#abac7f] text-white' 
+                                            className={`p-2 rounded ${day.percentage > 0
+                                                    ? 'bg-[#abac7f] text-white'
                                                     : 'bg-gray-100'
-                                            }`}
+                                                }`}
                                         >
                                             <div className="text-xs font-medium">{day.day}</div>
                                             <div className="text-sm">
@@ -130,3 +125,5 @@ export default function DailyPrepBreakdown({
         </div>
     );
 }
+
+

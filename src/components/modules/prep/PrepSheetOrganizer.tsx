@@ -1,20 +1,16 @@
 import React, { useState } from 'react';
 import { Reorder } from 'framer-motion';
+import { PrepItemBase } from '@/types/prep';
 
-interface PrepItemOrganizer {
-    id: number;
-    name: string;
-    sheetName: string;
-    order: number;
+interface PrepSheetOrganizerProps {
+    items: PrepItemBase[];
+    onOrderChange: (items: PrepItemBase[]) => Promise<void>;
 }
 
 export default function PrepSheetOrganizer({
     items,
     onOrderChange
-}: {
-    items: PrepItemOrganizer[];
-    onOrderChange: (items: PrepItemOrganizer[]) => void;
-}) {
+}: PrepSheetOrganizerProps) {
     const [sheets, setSheets] = useState(() => {
         const grouped = items.reduce((acc, item) => {
             if (!acc[item.sheetName]) {
@@ -22,17 +18,17 @@ export default function PrepSheetOrganizer({
             }
             acc[item.sheetName].push(item);
             return acc;
-        }, {} as Record<string, PrepItemOrganizer[]>);
+        }, {} as Record<string, PrepItemBase[]>);
 
         // Sort by existing order
         Object.values(grouped).forEach(items => {
-            items.sort((a, b) => a.order - b.order);
+            items.sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
         });
 
         return grouped;
     });
 
-    const handleReorder = (sheetName: string, reorderedItems: PrepItemOrganizer[]) => {
+    const handleReorder = async (sheetName: string, reorderedItems: PrepItemBase[]) => {
         // Update order numbers
         const updatedItems = reorderedItems.map((item, index) => ({
             ...item,
@@ -46,7 +42,7 @@ export default function PrepSheetOrganizer({
 
         // Notify parent of all changes
         const allItems = Object.values(sheets).flat();
-        onOrderChange(allItems);
+        await onOrderChange(allItems);
     };
 
     return (

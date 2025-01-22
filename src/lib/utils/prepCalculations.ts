@@ -1,3 +1,6 @@
+import { HistoricalUsage } from '@/types/prep';
+
+
 export interface DailyPrepRequirement {
     quantity: number;
     day: string;
@@ -16,7 +19,7 @@ export interface PrepCalculation {
 const DAYS = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
 
 export function calculateDailyPrep(
-    historicalSales: any[],
+    historicalSales: HistoricalUsage[],
     currentDate: Date,
     bufferPercentage: number = 50
 ): PrepCalculation[] {
@@ -30,7 +33,7 @@ export function calculateDailyPrep(
         if (!calculations.has(sale.prepItemId)) {
             calculations.set(sale.prepItemId, {
                 itemId: sale.prepItemId,
-                name: sale.itemName,
+                name: sale.name,
                 unit: sale.unit,
                 dailyRequirements: DAYS.map(day => ({
                     day,
@@ -45,7 +48,7 @@ export function calculateDailyPrep(
 
         const calc = calculations.get(sale.prepItemId)!;
         const dayReq = calc.dailyRequirements.find(d => d.day === dayName)!;
-        dayReq.quantity += sale.quantity * sale.prepQuantity;
+        dayReq.quantity += sale.quantity * sale.quantity;
     });
 
     // Calculate totals with buffer
