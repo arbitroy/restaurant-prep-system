@@ -30,7 +30,7 @@ export async function GET(request: NextRequest) {
                             )
                         ) FILTER (WHERE p.id IS NOT NULL),
                         '[]'
-                    ) as prep_items
+                    ) as "prepItems"
                 FROM menu_items m
                 LEFT JOIN prep_item_mappings pm ON m.id = pm.menu_item_id
                 LEFT JOIN prep_items p ON pm.prep_item_id = p.id
@@ -41,11 +41,10 @@ export async function GET(request: NextRequest) {
         });
 
 
-
         const { rows: prepItems } = await query({
             text: `
-                SELECT id, name, unit, sheet_name 
-                FROM prep_items 
+                SELECT id, name, unit, sheet_name AS "sheetName"
+                FROM prep_items
                 WHERE restaurant_id = $1
                 ORDER BY sheet_name, name
             `,

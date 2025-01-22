@@ -90,10 +90,16 @@ export async function GET(request: NextRequest) {
             `,
             values: [menuItemId]
         });
-
+        
         return NextResponse.json({
             status: 'success',
-            data: rows
+            data: rows.map(row => ({
+                id: row.id,
+                prepItemId: row.prep_item_id,
+                quantity: row.quantity,
+                prep_name: row.prep_name,
+                unit: row.unit
+            }))
         });
     } catch (error) {
         console.error('Error fetching prep item mappings:', error);

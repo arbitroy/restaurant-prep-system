@@ -66,9 +66,13 @@ export default function ItemsPage() {
         {
             header: 'Prep Items',
             accessor: 'prepItems' as const,
-            render: (value: string | number | PIM[] | Date | undefined, _item: MenuItem) => (
-                <span>{Array.isArray(value) ? value.length : 0}</span>
-            )
+            render: (value: any) => {
+                return (
+                    <span className="px-2 py-1 bg-[#abac7f]/20 rounded-full">
+                        {Array.isArray(value) ? value.length : 0}
+                    </span>
+                );
+            }
         },
         {
             header: 'Actions',
