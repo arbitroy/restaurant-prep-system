@@ -27,6 +27,7 @@ export default function SalesPage() {
         restaurantId
     });
 
+
     const { menuItems } = useItems({
         restaurantId
     });
@@ -90,10 +91,13 @@ export default function SalesPage() {
                     ) : (
                         <SalesGrid
                             sales={(dailySales?.items || []).map(item => ({
-                                ...item,
                                 restaurantId,
-                                date: selectedDate,
+                                menuItemId: item.menuItemId,
                                 id: item.menuItemId,
+                                name: item.name,
+                                category: item.category || '',
+                                quantity: item.quantity,
+                                date: selectedDate,
                                 createdAt: new Date(),
                                 updatedAt: new Date()
                             }))}

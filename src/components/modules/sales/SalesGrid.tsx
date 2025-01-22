@@ -2,43 +2,39 @@ import { motion } from 'framer-motion';
 import { Table } from '@/components/ui/Table';
 import { SalesEntry } from '@/types/sales';
 
-
-interface SalesGridProps {
-    sales: SalesEntry[];
-    onDelete?: (id: number) => void;
-}
-
-interface MenuItem {
+interface ExtendedSalesEntry extends SalesEntry {
     name: string;
     category: string;
 }
 
+interface SalesGridProps {
+    sales: ExtendedSalesEntry[];
+    onDelete?: (id: number) => void;
+}
 
 export function SalesGrid({ sales, onDelete }: SalesGridProps) {
     const columns = [
         {
             header: 'Item',
-            accessor: 'menuItem' as keyof SalesEntry,
-            render: (value: SalesEntry[keyof SalesEntry], _item: SalesEntry) => value && typeof value === 'object' && 'name' in value ? <span>{(value as MenuItem).name}</span> : '',
+            accessor: 'name' as keyof ExtendedSalesEntry,
         },
         {
             header: 'Category',
-            accessor: 'menuItem' as keyof SalesEntry,
-            render: (value: SalesEntry[keyof SalesEntry], _item: SalesEntry) => value && typeof value === 'object' && 'category' in value ? <span>{(value as MenuItem).category}</span> : '',
+            accessor: 'category' as keyof ExtendedSalesEntry,
         },
         {
             header: 'Quantity',
-            accessor: 'quantity' as const,
+            accessor: 'quantity' as keyof ExtendedSalesEntry,
         },
         {
             header: 'Time',
-            accessor: 'createdAt' as const,
-            render: (value: SalesEntry[keyof SalesEntry], _item: SalesEntry) => value && value instanceof Date ? <span>{new Date(value).toLocaleTimeString()}</span> : null,
+            accessor: 'createdAt' as keyof ExtendedSalesEntry,
+            render: (value: Date) => value?.toLocaleTimeString(),
         },
         {
             header: 'Actions',
-            accessor: 'id' as const,
-            render: (value: SalesEntry[keyof SalesEntry], _item: SalesEntry) => typeof value === 'number' && onDelete && (
+            accessor: 'id' as keyof ExtendedSalesEntry,
+            render: (value: number) => onDelete && (
                 <button
                     onClick={() => onDelete(value)}
                     className="text-red-500 hover:text-red-700"
