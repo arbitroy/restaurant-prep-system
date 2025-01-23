@@ -1,10 +1,14 @@
-interface TableProps<T> {
+import { ReactNode } from 'react';
+
+export interface Column<T> {
+    header: string;
+    accessor: keyof T;
+    render?: (value: T[keyof T], item: T) => ReactNode;
+}
+
+export interface TableProps<T> {
     data: T[];
-    columns: {
-        header: string;
-        accessor: keyof T;
-        render?: (value: T[keyof T], item: T) => React.ReactNode;
-    }[];
+    columns: Column<T>[];
     onRowClick?: (item: T) => void;
 }
 
@@ -37,9 +41,9 @@ export function Table<T extends { id?: string | number }>({
                         >
                             {columns.map((column, j) => (
                                 <td key={j} className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                                    {column.render
+                                    {column.render 
                                         ? column.render(item[column.accessor], item)
-                                        : String(item[column.accessor] || '')}
+                                        : item[column.accessor]?.toString() || ''}
                                 </td>
                             ))}
                         </tr>

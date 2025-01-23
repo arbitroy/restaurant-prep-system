@@ -1,6 +1,6 @@
 import { motion } from 'framer-motion';
-import { Table } from '@/components/ui/Table';
 import { SalesEntry } from '@/types/sales';
+import { Column, Table } from '@/components/ui/Table';
 
 interface ExtendedSalesEntry extends SalesEntry {
     name: string;
@@ -13,36 +13,49 @@ interface SalesGridProps {
 }
 
 export function SalesGrid({ sales, onDelete }: SalesGridProps) {
-    const columns = [
+    const columns: Column<ExtendedSalesEntry>[] = [
         {
             header: 'Item',
-            accessor: 'name' as keyof ExtendedSalesEntry,
+            accessor: 'name'
         },
         {
             header: 'Category',
-            accessor: 'category' as keyof ExtendedSalesEntry,
+            accessor: 'category'
         },
         {
             header: 'Quantity',
-            accessor: 'quantity' as keyof ExtendedSalesEntry,
+            accessor: 'quantity'
         },
         {
             header: 'Time',
-            accessor: 'createdAt' as keyof ExtendedSalesEntry,
-            render: (value: Date) => value?.toLocaleTimeString(),
+            accessor: 'createdAt',
+            render: (value) => {
+                if (value instanceof Date) {
+                    return value.toLocaleTimeString();
+                }
+                return '';
+            }
         },
         {
             header: 'Actions',
-            accessor: 'id' as keyof ExtendedSalesEntry,
-            render: (value: number) => onDelete && (
-                <button
-                    onClick={() => onDelete(value)}
-                    className="text-red-500 hover:text-red-700"
-                >
-                    Delete
-                </button>
-            ),
-        },
+            accessor: 'id',
+            render: (value, _item) => {
+                if (typeof value === 'number' && onDelete) {
+                    return (
+                        <button
+                            onClick={(e) => {
+                                e.stopPropagation();  // Prevent row click
+                                onDelete(value);
+                            }}
+                            className="text-red-500 hover:text-red-700 transition-colors"
+                        >
+                            Delete
+                        </button>
+                    );
+                }
+                return null;
+            }
+        }
     ];
 
     return (
@@ -54,7 +67,7 @@ export function SalesGrid({ sales, onDelete }: SalesGridProps) {
             <div className="p-4 border-b">
                 <h3 className="text-lg font-medium">Today's Sales</h3>
             </div>
-            <Table
+            <Table<ExtendedSalesEntry>
                 data={sales}
                 columns={columns}
             />
