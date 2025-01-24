@@ -13,21 +13,24 @@ interface PrepSheetProps {
     showControls?: boolean;
 }
 
+interface TaskUpdate {
+    id: number;
+    completedQuantity: number;
+    status: 'pending' | 'in_progress' | 'completed';
+    notes?: string;
+}
+
 export const PrepSheet = forwardRef<HTMLDivElement, PrepSheetProps>(
     ({ title, date, requirements, showControls = true }, ref) => {
         const { showToast } = useToast();
         const queryClient = useQueryClient();
         const [completedQuantities, setCompletedQuantities] = useState<Record<number, number>>({});
         const [notes, setNotes] = useState<Record<number, string>>({});
+        const [updatingItems, setUpdatingItems] = useState<Record<number, boolean>>({});
 
         // Update prep task mutation
         const updateTask = useMutation({
-            mutationFn: async (params: {
-                id: number;
-                completedQuantity: number;
-                status: 'pending' | 'in_progress' | 'completed';
-                notes?: string;
-            }) => {
+            mutationFn: async (params: TaskUpdate) => {
                 const response = await fetch('/api/prep/tasks', {
                     method: 'PUT',
                     headers: { 'Content-Type': 'application/json' },
@@ -36,29 +39,59 @@ export const PrepSheet = forwardRef<HTMLDivElement, PrepSheetProps>(
                 if (!response.ok) throw new Error('Failed to update task');
                 return response.json();
             },
-            onSuccess: () => {
-                showToast('Prep task updated successfully', 'success');
-                queryClient.invalidateQueries({ queryKey: ['prepTasks'] });
+            onMutate: (variables) => {
+                // Optimistic update
+                setUpdatingItems(prev => ({ ...prev, [variables.id]: true }));
             },
-            onError: () => {
-                showToast('Failed to update prep task', 'error');
+            onSuccess: (_, variables) => {
+                showToast('Task updated successfully', 'success');
+                queryClient.invalidateQueries({ queryKey: ['prepTasks'] });
+                // Clear form state for this item
+                setCompletedQuantities(prev => {
+                    const newState = { ...prev };
+                    delete newState[variables.id];
+                    return newState;
+                });
+                setNotes(prev => {
+                    const newState = { ...prev };
+                    delete newState[variables.id];
+                    return newState;
+                });
+            },
+            onError: (error) => {
+                showToast(error.message || 'Failed to update task', 'error');
+            },
+            onSettled: (_, __, variables) => {
+                setUpdatingItems(prev => ({ ...prev, [variables.id]: false }));
             }
         });
 
-        const handleComplete = (requirement: PrepRequirement) => {
+        const handleComplete = async (requirement: PrepRequirement) => {
             const completedQuantity = completedQuantities[requirement.id] || 0;
-            if (completedQuantity >= requirement.quantity) {
-                updateTask.mutate({
+            
+            // Validate input
+            if (completedQuantity <= 0) {
+                showToast('Please enter a valid quantity', 'error');
+                return;
+            }
+
+            if (completedQuantity < requirement.quantity) {
+                if (!confirm('Completed quantity is less than required. Mark as in progress?')) {
+                    return;
+                }
+            }
+
+            try {
+                await updateTask.mutateAsync({
                     id: requirement.id,
                     completedQuantity,
-                    status: 'completed',
+                    status: completedQuantity >= requirement.quantity ? 'completed' : 'in_progress',
                     notes: notes[requirement.id]
                 });
-            } else {
-                showToast('Please complete the required quantity', 'error');
+            } catch (error) {
+                // Error is handled by mutation error callback
             }
         };
-
 
         // Ensure requirements array is unique
         const uniqueRequirements = requirements.filter((req, index, self) =>
@@ -86,7 +119,9 @@ export const PrepSheet = forwardRef<HTMLDivElement, PrepSheetProps>(
                                 key={`prep-item-${item.id}-${date.toISOString()}`}
                                 initial={showControls ? { opacity: 0, y: 20 } : false}
                                 animate={{ opacity: 1, y: 0 }}
-                                className="p-4 border rounded-lg"
+                                className={`p-4 border rounded-lg ${
+                                    updatingItems[item.id] ? 'bg-gray-50' : ''
+                                }`}
                             >
                                 <div className="flex justify-between items-start">
                                     <div>
@@ -106,6 +141,7 @@ export const PrepSheet = forwardRef<HTMLDivElement, PrepSheetProps>(
                                                 }))}
                                                 placeholder="Completed amount"
                                                 className="w-32"
+                                                disabled={updatingItems[item.id]}
                                             />
                                             <Input
                                                 value={notes[item.id] || ''}
@@ -114,17 +150,33 @@ export const PrepSheet = forwardRef<HTMLDivElement, PrepSheetProps>(
                                                     [item.id]: e.target.value
                                                 }))}
                                                 placeholder="Add notes"
+                                                disabled={updatingItems[item.id]}
                                             />
                                             <Button
                                                 size="sm"
                                                 onClick={() => handleComplete(item)}
                                                 className="w-full"
+                                                isLoading={updatingItems[item.id]}
+                                                disabled={updatingItems[item.id]}
                                             >
-                                                Complete
+                                                {updatingItems[item.id] ? 'Updating...' : 'Complete'}
                                             </Button>
                                         </div>
                                     )}
                                 </div>
+                                {item.status && (
+                                    <div className="mt-2">
+                                        <span className={`px-2 py-1 text-xs rounded ${
+                                            item.status === 'completed' 
+                                                ? 'bg-green-100 text-green-800'
+                                                : item.status === 'in_progress'
+                                                ? 'bg-yellow-100 text-yellow-800'
+                                                : 'bg-gray-100 text-gray-800'
+                                        }`}>
+                                            {item.status}
+                                        </span>
+                                    </div>
+                                )}
                             </motion.div>
                         ))}
                     </div>
