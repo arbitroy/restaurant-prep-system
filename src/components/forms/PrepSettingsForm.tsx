@@ -5,11 +5,11 @@ import { Button } from '@/components/ui/Button';
 import { Select } from '@/components/ui/Select';
 import { useToast } from '@/components/ui/Toast/ToastContext';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { PrepItem } from '@/types/prep';
+import { PrepItemFormData } from '@/types/prep';
 
 interface PrepSettingsFormProps {
     restaurantId: number;
-    prepItems: PrepItem[] | undefined;
+    prepItems: PrepItemFormData[];  // Changed from PrepItem[]
     onClose: () => void;
 }
 interface PrepSettingsData {

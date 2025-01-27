@@ -1,84 +1,79 @@
 import { query } from '@/lib/db';
-import { PrepQuery, PrepRequirementData } from '@/types/api';
 import { ApiResponse } from '@/types/common';
-import { PrepRequirement, PrepSheet } from '@/types/prep';
+import {
+    PrepQueryParams,
+    PrepRequirement,
+    PrepSheet,
+    DbPrepRequirement,
+    prepRequirementFromDb,
+    DbHistoricalUsage,
+    historicalUsageFromDb,
+    HistoricalUsage
+} from '@/types/prep';
 import { DatabaseError } from '@/types/errors';
-
 
 export class PrepService {
     static async calculatePrepRequirements(
-        params: PrepQuery
+        params: PrepQueryParams
     ): Promise<ApiResponse<PrepRequirement[]>> {
         try {
-            const salesQuery = `
-        WITH sales_avg AS (
-          SELECT 
-            menu_item_id,
-            EXTRACT(DOW FROM date) as day_of_week,
-            AVG(quantity) as avg_quantity
-          FROM sales
-          WHERE 
-            restaurant_id = $1 
-            AND date >= $2
-            AND date <= $3
-          GROUP BY menu_item_id, EXTRACT(DOW FROM date)
-        )
-        SELECT 
-          m.id as menu_item_id,
-          sa.day_of_week,
-          COALESCE(sa.avg_quantity, 0) as avg_quantity,
-          pm.prep_item_id,
-          pm.quantity as prep_quantity,
-          p.name as prep_name,
-          p.unit,
-          p.sheet_name
-        FROM menu_items m
-        LEFT JOIN sales_avg sa ON m.id = sa.menu_item_id
-        JOIN prep_item_mappings pm ON m.id = pm.menu_item_id
-        JOIN prep_items p ON pm.prep_item_id = p.id
-        WHERE m.restaurant_id = $1
-        ${params.sheetName ? 'AND p.sheet_name = $4' : ''}
-      `;
-
-            const startDate = new Date(params.date);
-            startDate.setDate(startDate.getDate() - 28);
-
-            const queryValues = [
-                params.restaurantId,
-                startDate.toISOString(),
-                params.date.toISOString(),
-                params.sheetName || null
-            ];
-
-            const { rows } = await query({
-                text: salesQuery,
-                values: queryValues
+            const { rows } = await query<DbPrepRequirement>({
+                text: `SELECT * FROM calculate_prep_requirements($1, $2::date)
+                      ${params.sheetName ? 'WHERE sheet_name = $3' : ''}
+                      ORDER BY sheet_name, name`,
+                values: [
+                    params.restaurantId,
+                    params.date.toISOString(),
+                    params.sheetName ?? null
+                ]
             });
 
-            const prepRequirementData: PrepRequirementData[] = rows.map(row => ({
-                prep_item_id: row.prep_item_id,
-                prep_name: row.prep_name,
-                unit: row.unit,
-                sheet_name: row.sheet_name,
-                avg_quantity: row.avg_quantity,
-                prep_quantity: row.prep_quantity,
-                day_of_week: row.day_of_week,
-                buffer_quantity: () => 0, // Add default or calculated values for missing properties
-                minimum_quantity: () => 0, // Add default or calculated values for missing properties
-                id: row.prep_item_id, // Add default or calculated values for missing properties
-                name: row.prep_name, // Add default or calculated values for missing properties
-                quantity: row.prep_quantity * row.avg_quantity // Add the missing 'quantity' property
-            }));
-
-            const prepRequirements = this.processPrepRequirements(prepRequirementData, params.date.getDay());
+            const requirements = rows.map(prepRequirementFromDb);
 
             return {
                 status: 'success',
-                data: prepRequirements
+                data: requirements
             };
         } catch (error) {
             throw new DatabaseError(
                 'Failed to calculate prep requirements',
+                error instanceof Error ? error.message : undefined
+            );
+        }
+    }
+
+    static async getHistoricalUsage(
+        restaurantId: number,
+        startDate: Date,
+        endDate: Date
+    ): Promise<ApiResponse<HistoricalUsage[]>> {
+        try {
+            const { rows } = await query<DbHistoricalUsage>({
+                text: `
+                    SELECT 
+                        pi.id as prep_item_id,
+                        s.date,
+                        SUM(s.quantity * pim.quantity) as quantity,
+                        pi.name,
+                        pi.unit
+                    FROM sales s
+                    JOIN prep_item_mappings pim ON s.menu_item_id = pim.menu_item_id
+                    JOIN prep_items pi ON pim.prep_item_id = pi.id
+                    WHERE s.restaurant_id = $1 
+                    AND s.date BETWEEN $2 AND $3
+                    GROUP BY pi.id, s.date
+                    ORDER BY s.date
+                `,
+                values: [restaurantId, startDate.toISOString(), endDate.toISOString()]
+            });
+
+            return {
+                status: 'success',
+                data: rows.map(historicalUsageFromDb)
+            };
+        } catch (error) {
+            throw new DatabaseError(
+                'Failed to fetch historical usage',
                 error instanceof Error ? error.message : undefined
             );
         }
@@ -95,9 +90,7 @@ export class PrepService {
             });
 
             if (requirements.status === 'error') {
-                return {
-                    status: 'error'
-                };
+                return { status: 'error' };
             }
 
             const sheetMap = new Map<string, PrepRequirement[]>();
@@ -109,11 +102,13 @@ export class PrepService {
                 sheetMap.get(item.sheetName)?.push(item);
             });
 
-            const sheets: PrepSheet[] = Array.from(sheetMap.entries()).map(([sheetName, items]) => ({
-                sheetName,
-                date,
-                items
-            }));
+            const sheets: PrepSheet[] = Array.from(sheetMap.entries()).map(
+                ([sheetName, items]) => ({
+                    sheetName,
+                    date,
+                    items
+                })
+            );
 
             return {
                 status: 'success',
@@ -125,48 +120,5 @@ export class PrepService {
                 error instanceof Error ? error.message : undefined
             );
         }
-    }
-
-    private static processPrepRequirements(
-        rows: PrepRequirementData[],
-        currentDayOfWeek: number
-    ): PrepRequirement[] {
-        const nextDayOfWeek = (currentDayOfWeek + 1) % 7;
-        const prepRequirements = new Map<number, PrepRequirement>();
-
-        rows.forEach(row => {
-            const {
-                prep_item_id,
-                prep_name,
-                unit,
-                sheet_name,
-                avg_quantity,
-                prep_quantity,
-                day_of_week
-            } = row;
-
-            if (!prepRequirements.has(prep_item_id)) {
-                prepRequirements.set(prep_item_id, {
-                    id: prep_item_id,
-                    name: prep_name,
-                    unit,
-                    sheetName: sheet_name,
-                    quantity: 0
-                });
-            }
-
-            const requirement = prepRequirements.get(prep_item_id)!;
-
-            if (day_of_week === currentDayOfWeek) {
-                requirement.quantity += avg_quantity * prep_quantity;
-            } else if (day_of_week === nextDayOfWeek) {
-                requirement.quantity += (avg_quantity * prep_quantity * 0.5);
-            }
-        });
-
-        return Array.from(prepRequirements.values()).map(req => ({
-            ...req,
-            quantity: Math.ceil(req.quantity)
-        }));
     }
 }

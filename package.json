@@ -7,9 +7,9 @@
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
-    "migrate": "ts-node --transpile-only scripts/migrate.ts",
-    "seed": "ts-node --transpile-only scripts/seed.ts",
-    "db:reset": "ts-node --transpile-only scripts/reset.ts",
+    "migrate": "ts-node --transpile-only scripts/migrate.js",
+    "seed": "ts-node --transpile-only scripts/seed.js",
+    "db:reset": "ts-node --transpile-only scripts/reset.js",
     "db:setup": "npm run migrate && npm run seed"
   },
   "dependencies": {

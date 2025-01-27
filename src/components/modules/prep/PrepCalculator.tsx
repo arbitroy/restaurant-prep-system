@@ -1,126 +1,158 @@
-import { useState } from 'react';
-import { motion } from 'framer-motion';
+import React, { useState } from 'react';
+import { motion, AnimatePresence, Reorder } from 'framer-motion';
 import { Button } from '@/components/ui/Button';
 import { Select } from '@/components/ui/Select';
-import { LoadingSpinner } from '@/components/ui/loading';
 import { useToast } from '@/components/ui/Toast/ToastContext';
-import { PrepRequirement } from '@/types/prep';
 import { PREP_SHEETS } from '@/lib/constants/prep-items';
+import { PrepRequirement } from '@/types/prep';
 
-interface PrepCalculatorProps {
+interface Props {
     requirements: PrepRequirement[];
-    isLoading?: boolean;
-    onSheetChange?: (sheet: string) => void;
-    onPrint?: () => void;
+    currentDate: Date;
+    bufferPercent: number;
+    onSheetAssign: (itemId: number, sheet: string) => void;
+    onOrderChange: (items: PrepRequirement[]) => void;
 }
 
-export function PrepCalculator({
+const DAYS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+
+export const PrepCalculator = ({
     requirements,
-    isLoading = false,
-    onSheetChange,
-    onPrint
-}: PrepCalculatorProps) {
-    const [selectedSheet, setSelectedSheet] = useState<string>(PREP_SHEETS[0]);
+    currentDate,
+    bufferPercent,
+    onSheetAssign,
+    onOrderChange
+}: Props) => {
     const { showToast } = useToast();
+    const [selectedSheet, setSelectedSheet] = useState<string>(PREP_SHEETS[0]);
+    const [expandedItems, setExpandedItems] = useState<Set<number>>(new Set());
 
-    const handleSheetChange = (sheet: string) => {
-        try {
-            setSelectedSheet(sheet);
-            onSheetChange?.(sheet);
-            showToast('Sheet changed successfully', 'success');
-        } catch (error) {
-            showToast('Failed to change sheet', 'error');
-        }
+    const filteredRequirements = requirements
+        .filter(req => req.sheetName === selectedSheet)
+        .sort((a, b) => (a.order || 0) - (b.order || 0));
+
+    const [items, setItems] = useState(filteredRequirements);
+
+    const handleReorder = (reorderedItems: PrepRequirement[]) => {
+        setItems(reorderedItems);
+        onOrderChange(reorderedItems);
+        showToast('Item order updated', 'success');
     };
 
-    const handlePrint = () => {
-        try {
-            onPrint?.();
-            showToast('Preparing print view...', 'success');
-        } catch (error) {
-            showToast('Failed to print prep sheet', 'error');
+    const toggleExpand = (itemId: number) => {
+        const newExpanded = new Set(expandedItems);
+        if (expandedItems.has(itemId)) {
+            newExpanded.delete(itemId);
+        } else {
+            newExpanded.add(itemId);
         }
+        setExpandedItems(newExpanded);
     };
 
-    // Ensure requirements array is unique by id
-    const uniqueRequirements = requirements.filter((req, index, self) =>
-        index === self.findIndex((r) => r.id === req.id)
-    );
-
-    if (isLoading) {
-        return (
-            <div className="bg-white rounded-lg shadow-sm p-6">
-                <div className="flex justify-center items-center h-48">
-                    <LoadingSpinner />
-                </div>
-            </div>
-        );
-    }
+    const calculateNextDayBuffer = (quantity: number) => {
+        return (quantity * bufferPercent) / 100;
+    };
 
     return (
-        <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            className="bg-white rounded-lg shadow-sm p-6"
-        >
-            <div className="flex justify-between items-center mb-6">
-                <h3 className="text-lg font-medium">Prep Calculator</h3>
-                <div className="flex space-x-2">
-                    <Select
-                        value={selectedSheet}
-                        onChange={(e) => handleSheetChange(e.target.value)}
-                        options={PREP_SHEETS.map(sheet => ({
-                            value: sheet,
-                            label: sheet
-                        }))}
-                    />
-                    <Button
-                        variant="outline"
-                        onClick={handlePrint}
-                    >
-                        Print Sheet
-                    </Button>
-                </div>
+        <div className="space-y-6">
+            <div className="flex justify-between items-center">
+                <Select
+                    value={selectedSheet}
+                    onChange={(e) => setSelectedSheet(e.target.value)}
+                    options={PREP_SHEETS.map(sheet => ({
+                        value: sheet,
+                        label: sheet
+                    }))}
+                    className="w-48"
+                />
+                <Button onClick={() => window.print()}>Print Sheet</Button>
             </div>
 
-            {uniqueRequirements.length > 0 ? (
-                <div className="space-y-4">
-                    {uniqueRequirements.map((req) => (
-                        <motion.div
-                            key={`req-${req.id}-${req.name}`}
-                            initial={{ opacity: 0 }}
-                            animate={{ opacity: 1 }}
-                            className="p-4 border rounded-lg hover:bg-gray-50 transition-colors"
+            <Reorder.Group
+                axis="y"
+                values={items}
+                onReorder={handleReorder}
+                className="space-y-4"
+            >
+                <AnimatePresence>
+                    {items.map((req) => (
+                        <Reorder.Item
+                            key={req.id}
+                            value={req}
+                            className="bg-white p-4 rounded-lg shadow-sm hover:shadow-md transition-shadow cursor-move"
                         >
-                            <div className="flex justify-between items-center">
-                                <div>
-                                    <h4 className="font-medium">{req.name}</h4>
-                                    <p className="text-sm text-gray-500">
-                                        Required: {req.quantity} {req.unit}
-                                    </p>
+                            <motion.div
+                                initial={{ opacity: 0, y: 20 }}
+                                animate={{ opacity: 1, y: 0 }}
+                                exit={{ opacity: 0, y: -20 }}
+                                onClick={() => toggleExpand(req.id)}
+                            >
+                                <div className="flex justify-between items-center">
+                                    <div>
+                                        <h4 className="font-medium">{req.name}</h4>
+                                        <p className="text-sm text-gray-500">
+                                            {req.quantity} {req.unit}
+                                        </p>
+                                    </div>
+                                    <div className="flex items-center space-x-4">
+                                        <Select
+                                            value={req.sheetName}
+                                            onChange={(e) => {
+                                                e.stopPropagation();
+                                                onSheetAssign(req.id, e.target.value);
+                                            }}
+                                            options={PREP_SHEETS.map(sheet => ({
+                                                value: sheet,
+                                                label: sheet
+                                            }))}
+                                            className="w-36"
+                                        />
+                                        <div className="text-gray-400">☰</div>
+                                    </div>
                                 </div>
-                                <div className="text-right">
-                                    <p className="text-sm text-gray-500">Next Day Buffer</p>
-                                    <p className="font-medium">
-                                        +{Math.ceil(req.quantity * 0.5)} {req.unit}
-                                    </p>
-                                </div>
-                            </div>
-                        </motion.div>
+
+                                {expandedItems.has(req.id) && (
+                                    <motion.div
+                                        initial={{ height: 0, opacity: 0 }}
+                                        animate={{ height: 'auto', opacity: 1 }}
+                                        exit={{ height: 0, opacity: 0 }}
+                                        className="mt-4 pt-4 border-t"
+                                    >
+                                        <div className="grid grid-cols-7 gap-2">
+                                            {DAYS.map((day, i) => {
+                                                const isCurrentDay = i === currentDate.getDay();
+                                                const isNextDay = i === (currentDate.getDay() + 1) % 7;
+                                                const quantity = isCurrentDay ? req.quantity :
+                                                    isNextDay ? calculateNextDayBuffer(req.quantity) : 0;
+
+                                                return (
+                                                    <div
+                                                        key={day}
+                                                        className={`p-2 rounded ${quantity > 0 ? 'bg-[#abac7f]/20' : 'bg-gray-50'
+                                                            }`}
+                                                    >
+                                                        <div className="text-xs font-medium">{day}</div>
+                                                        <div className="text-sm">
+                                                            {quantity.toFixed(1)} {req.unit}
+                                                        </div>
+                                                        {quantity > 0 && (
+                                                            <div className="text-xs text-gray-500">
+                                                                {isCurrentDay ? '100%' : `${bufferPercent}%`}
+                                                            </div>
+                                                        )}
+                                                    </div>
+                                                );
+                                            })}
+                                        </div>
+                                    </motion.div>
+                                )}
+                            </motion.div>
+                        </Reorder.Item>
                     ))}
-                </div>
-            ) : (
-                <div className="flex flex-col items-center justify-center h-32 text-gray-500">
-                    <p>No prep requirements for this sheet</p>
-                    <Button
-                        variant="outline"
-                        onClick={() => handleSheetChange(PREP_SHEETS[0])}
-                        className="mt-2"
-                    >
-                        Reset Sheet
-                    </Button>
-                </div>
-            )}
-        </motion.div>
+                </AnimatePresence>
+            </Reorder.Group>
+        </div>
     );
-}
+};
+
+export default PrepCalculator;

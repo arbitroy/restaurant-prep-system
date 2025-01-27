@@ -2,8 +2,14 @@ import { NextRequest, NextResponse } from 'next/server';
 import { query } from '@/lib/db';
 import { DatabaseError } from '@/types/errors';
 import { ApiResponse } from '@/types/common';
-import { PrepRequirement, PrepSheet } from '@/types/prep';
+import { DbPrepRequirement, PREP_SHEETS, prepRequirementFromDb, PrepSheet, PrepSheetName } from '@/types/prep';
+import { z } from 'zod';
 
+const GetRequestSchema = z.object({
+    restaurantId: z.string().transform(val => parseInt(val)),
+    date: z.string().transform(str => new Date(str)),
+    sheetName: z.enum(PREP_SHEETS).optional()
+});
 
 export async function POST(request: NextRequest) {
     try {
@@ -38,7 +44,7 @@ export async function POST(request: NextRequest) {
         });
     } catch (error) {
         console.error('Error adding prep item:', error);
-        
+
         if (error instanceof DatabaseError) {
             return NextResponse.json(
                 { error: error.message },
@@ -56,63 +62,56 @@ export async function POST(request: NextRequest) {
 export async function GET(request: NextRequest) {
     try {
         const { searchParams } = new URL(request.url);
-        const restaurantId = searchParams.get('restaurantId');
-        const date = searchParams.get('date');
-        const sheetName = searchParams.get('sheetName');
+        
+        // Validate request parameters
+        const validated = GetRequestSchema.safeParse({
+            restaurantId: searchParams.get('restaurantId'),
+            date: searchParams.get('date'),
+            sheetName: searchParams.get('sheetName')
+        });
 
-        if (!restaurantId || !date) {
+        if (!validated.success) {
             return NextResponse.json(
-                { error: 'Restaurant ID and date are required' },
+                { 
+                    status: 'error',
+                    error: 'Invalid request parameters',
+                    details: validated.error.errors
+                },
                 { status: 400 }
             );
         }
 
-        let sqlQuery = `
+        // Construct query with optional sheet name filter
+        const sqlQuery = `
             SELECT * FROM calculate_prep_requirements($1, $2::DATE)
+            ${validated.data.sheetName ? 'WHERE sheet_name = $3' : ''}
+            ORDER BY sheet_name, name
         `;
-        const values: (string | number)[] = [
-            parseInt(restaurantId),
-            date
+
+        const values = [
+            validated.data.restaurantId,
+            validated.data.date.toISOString(),
+            validated.data.sheetName ?? null
         ];
 
-        if (sheetName) {
-            sqlQuery += ` WHERE sheet_name = $3`;
-            values.push(sheetName);
-        }
-
-        sqlQuery += ` ORDER BY sheet_name, name`;
-
-        const { rows } = await query<PrepRequirement>({
+        // Execute query with proper typing
+        const { rows } = await query<DbPrepRequirement>({
             text: sqlQuery,
             values
         });
 
-        // Group by sheet
-        const sheets: PrepSheet[] = rows.reduce((acc: PrepSheet[], row) => {
-            const sheet = acc.find(s => s.sheetName === row.sheetName);
+        // Transform and group results
+        const sheets = rows.reduce((acc: PrepSheet[], row) => {
+            const sheet = acc.find(s => s.sheetName === row.sheet_name);
+            const requirement = prepRequirementFromDb(row);
+
             if (sheet) {
-                sheet.items.push({
-                    id: row.id,
-                    name: row.name,
-                    unit: row.unit,
-                    quantity: Number(row.quantity),
-                    bufferQuantity: Number(row.bufferQuantity),
-                    minimumQuantity: Number(row.minimumQuantity),
-                    sheetName: row.sheetName
-                });
+                sheet.items.push(requirement);
             } else {
                 acc.push({
-                    sheetName: row.sheetName,
-                    date: new Date(date),
-                    items: [{
-                        id: row.id,
-                        name: row.name,
-                        unit: row.unit,
-                        quantity: Number(row.quantity),
-                        bufferQuantity: Number(row.bufferQuantity),
-                        minimumQuantity: Number(row.minimumQuantity),
-                        sheetName: row.sheetName
-                    }]
+                    sheetName: row.sheet_name as PrepSheetName,
+                    date: validated.data.date,
+                    items: [requirement]
                 });
             }
             return acc;
@@ -126,8 +125,13 @@ export async function GET(request: NextRequest) {
         return NextResponse.json(response);
     } catch (error) {
         console.error('Error calculating prep requirements:', error);
+        
         return NextResponse.json(
-            { status: 'error', error: 'Failed to calculate prep requirements' },
+            { 
+                status: 'error', 
+                error: 'Failed to calculate prep requirements',
+                details: error instanceof Error ? error.message : undefined
+            },
             { status: 500 }
         );
     }

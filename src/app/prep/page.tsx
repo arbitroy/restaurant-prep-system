@@ -18,8 +18,13 @@ import type {
     PrepSheet as PrepSheetType,
     PrepTask,
     HistoricalUsage,
-    PrepItemBase
+    PrepItemBase,
+    PrepRequirement,
+    PrepContentProps,
+    PrepOrderUpdate,
+    PrepSheetName
 } from '@/types/prep';
+import { usePrepTasks } from '@/hooks/usePrepTasks';
 
 type PrepView = 'calculator' | 'tasks' | 'organize' | 'print' | 'settings';
 
@@ -32,18 +37,7 @@ interface PrepControlsProps {
     setShowSettings: (show: boolean) => void;
 }
 
-interface PrepContentProps {
-    activeView: PrepView;
-    prepSheets: PrepSheetType[];
-    historicalSales: HistoricalUsage[];
-    selectedDate: Date;
-    bufferPercentage: number;
-    setSelectedSheet: (sheet: string) => void;
-    handleBufferChange: (value: number) => void;
-    handleOrderChange: (items: PrepItemBase[]) => Promise<void>;
-    handlePrint: () => void;
-    printRef: React.RefObject<HTMLDivElement>;
-}
+
 
 function PrepControls({
     activeView,
@@ -85,7 +79,65 @@ function PrepControls({
         </div>
     );
 }
+function PrepTasksView({
+    prepSheets,
+    tasks,
+    selectedDate,
+    updateTask,
+    isLoading
+}: {
+    prepSheets: PrepSheetType[];
+    tasks: PrepTask[];
+    selectedDate: Date;
+    updateTask: ReturnType<typeof usePrepTasks>['updateTask'];
+    isLoading: boolean;
+}) {
+    // First, organize tasks by prep item ID for easy lookup
+    const tasksByPrepItem = tasks.reduce((acc, task) => {
+        acc[task.prepItemId] = task;
+        return acc;
+    }, {} as Record<number, PrepTask>);
 
+    if (isLoading) {
+        return (
+            <div className="flex justify-center items-center h-64">
+                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[#373d20]" />
+            </div>
+        );
+    }
+
+    return (
+        <div className="space-y-8">
+            {PREP_SHEETS.map((sheetName) => {
+                const sheet = prepSheets.find(s => s.sheetName === sheetName);
+                if (!sheet?.items.length) return null;
+
+                // Combine prep requirements with their task status
+                const itemsWithStatus = sheet.items.map(item => ({
+                    ...item,
+                    task: tasksByPrepItem[item.id],
+                    status: tasksByPrepItem[item.id]?.status || 'pending',
+                    completedQuantity: tasksByPrepItem[item.id]?.completedQuantity || 0
+                }));
+
+                return (
+                    <div key={`${sheetName}-${selectedDate.toISOString()}`}>
+                        <PrepSheet
+                            title={sheetName}
+                            date={selectedDate}
+                            requirements={itemsWithStatus}
+                            showControls
+                            onTaskUpdate={async (task) => {
+                                await updateTask.mutateAsync(task);
+                            }}
+                            isUpdating={updateTask.isLoading}
+                        />
+                    </div>
+                );
+            })}
+        </div>
+    );
+}
 function PrepContent({
     activeView,
     prepSheets,
@@ -96,31 +148,41 @@ function PrepContent({
     handleBufferChange,
     handleOrderChange,
     handlePrint,
-    printRef
+    printRef,
+    updateTask,
+    isLoadingTasks,
+    tasks
 }: PrepContentProps): JSX.Element {
     if (activeView === 'calculator') {
+        console.log('PrepContent Data:', {
+            prepSheets,
+            sheetCount: prepSheets.length,
+            itemsInFirstSheet: prepSheets[0]?.items.length
+        });
+
         return (
             <motion.div
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
             >
                 <PrepCalculator
-                    requirements={prepSheets.flatMap(sheet => sheet.items)}
-                    onSheetChange={setSelectedSheet}
-                    onPrint={() => handlePrint()}
-                />
+                    requirements={prepSheets.flatMap(sheet => sheet.items)} currentDate={selectedDate} bufferPercent={0} onSheetAssign={function (itemId: number, sheet: string): void {
+                        throw new Error('Function not implemented.');
+                    }} onOrderChange={function (items: PrepRequirement[]): void {
+                        throw new Error('Function not implemented.');
+                    }} />
                 <div className="mt-6">
-                <DailyPrepBreakdown
-                historicalSales={historicalSales.map(sale => ({
-                    ...sale,
-                    date: new Date(sale.date),
-                    itemId: sale.prepItemId,
-                    name: sale.name,
-                }))}
-                currentDate={selectedDate}
-                onBufferChange={handleBufferChange}
-                initialBuffer={bufferPercentage}
-            />
+                    <DailyPrepBreakdown
+                        historicalSales={historicalSales.map(sale => ({
+                            ...sale,
+                            date: new Date(sale.date),
+                            itemId: sale.prepItemId,
+                            name: sale.name,
+                        }))}
+                        currentDate={selectedDate}
+                        onBufferChange={handleBufferChange}
+                        initialBuffer={bufferPercentage}
+                    />
                 </div>
             </motion.div>
         );
@@ -138,11 +200,12 @@ function PrepContent({
                             key={`sheet-${sheetName}-${selectedDate.toISOString()}`}
                             className="mb-8"
                         >
-                            <PrepSheet
-                                title={sheetName}
-                                date={selectedDate}
-                                requirements={sheet.items}
-                                showControls
+                            <PrepTasksView
+                                prepSheets={prepSheets}
+                                tasks={tasks}
+                                selectedDate={selectedDate}
+                                updateTask={updateTask}
+                                isLoading={isLoadingTasks}
                             />
                         </div>
                     );
@@ -231,7 +294,16 @@ export default function PrepPage(): JSX.Element {
         bufferPercentage
     });
 
-    // Fetch prep tasks
+    const {
+        tasks,
+        isLoading: isLoadingTasks,
+        updateTask
+    } = usePrepTasks({
+        restaurantId,
+        date: selectedDate
+    });
+
+
     useQuery({
         queryKey: ['prepTasks', restaurantId, selectedDate],
         queryFn: async () => {
@@ -274,13 +346,12 @@ export default function PrepPage(): JSX.Element {
 
     const handleOrderChange = async (items: PrepItemBase[]): Promise<void> => {
         try {
-            // Convert PrepItemOrganizer to PrepOrderUpdate
-            const updates = items.map(({ id, order, sheetName }) => ({
+            const updates: PrepOrderUpdate[] = items.map(({ id, order, sheetName }) => ({
                 id,
-                order: order ?? 0, // Provide a default value of 0 if order is undefined
-                sheetName
+                order: order ?? 0,
+                sheetName: sheetName as PrepSheetName  // Type assertion here since we know it's valid
             }));
-            
+
             await updatePrepItemOrder(updates);
             showToast('Prep item order updated successfully', 'success');
         } catch (error) {
@@ -309,8 +380,12 @@ export default function PrepPage(): JSX.Element {
                     <PrepSettingsForm
                         restaurantId={restaurantId}
                         prepItems={prepItems.map(item => ({
-                            ...item,
-                            restaurantId
+                            id: item.id,
+                            restaurantId,
+                            name: item.name,
+                            unit: item.unit,
+                            sheetName: item.sheetName,
+                            order: item.order
                         }))}
                         onClose={() => setShowSettings(false)}
                     />
@@ -344,6 +419,9 @@ export default function PrepPage(): JSX.Element {
                     handleOrderChange={handleOrderChange}
                     handlePrint={handlePrint}
                     printRef={printRef}
+                    updateTask={updateTask}
+                    isLoadingTasks={isLoadingTasks}
+                    tasks={tasks}
                 />
             )}
         </div>

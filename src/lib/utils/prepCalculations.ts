@@ -1,77 +1,77 @@
-import { HistoricalUsage } from '@/types/prep';
+import { 
+    HistoricalUsage, 
+    PrepCalculation, 
+    PrepRequirement,
+    DailyRequirement,
+    DbPrepRequirement,
+    prepRequirementFromDb
+} from '@/types/prep';
 
-
-export interface DailyPrepRequirement {
-    quantity: number;
-    day: string;
-    percentage: number;
-}
-
-export interface PrepCalculation {
-    itemId: number;
-    name: string;
-    unit: string;
-    dailyRequirements: DailyPrepRequirement[];
-    totalRequired: number;
-    bufferPercentage: number;
-}
-
-const DAYS = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
+export const DAYS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
 
 export function calculateDailyPrep(
-    historicalSales: HistoricalUsage[],
+    historicalData: HistoricalUsage[],
     currentDate: Date,
-    bufferPercentage: number = 50
+    bufferPercentage: number
 ): PrepCalculation[] {
-    const calculations = new Map<number, PrepCalculation>();
-
-    // Group sales by day of week
-    historicalSales.forEach(sale => {
-        const saleDate = new Date(sale.date);
-        const dayName = DAYS[saleDate.getDay()];
-
-        if (!calculations.has(sale.prepItemId)) {
-            calculations.set(sale.prepItemId, {
-                itemId: sale.prepItemId,
-                name: sale.name,
-                unit: sale.unit,
-                dailyRequirements: DAYS.map(day => ({
-                    day,
-                    quantity: 0,
-                    percentage: day === DAYS[currentDate.getDay()] ? 100 :
-                        day === DAYS[(currentDate.getDay() + 1) % 7] ? bufferPercentage : 0
-                })),
-                totalRequired: 0,
-                bufferPercentage
-            });
+    const itemGroups = historicalData.reduce((groups, entry) => {
+        if (!groups[entry.prepItemId]) {
+            groups[entry.prepItemId] = {
+                itemId: entry.prepItemId,
+                name: entry.name,
+                unit: entry.unit,
+                usage: []
+            };
         }
+        groups[entry.prepItemId].usage.push(entry);
+        return groups;
+    }, {} as Record<number, { 
+        itemId: number; 
+        name: string; 
+        unit: string; 
+        usage: HistoricalUsage[] 
+    }>);
 
-        const calc = calculations.get(sale.prepItemId)!;
-        const dayReq = calc.dailyRequirements.find(d => d.day === dayName)!;
-        dayReq.quantity += sale.quantity * sale.quantity;
-    });
+    return Object.values(itemGroups).map(group => {
+        const dailyRequirements: DailyRequirement[] = DAYS.map((day, index) => {
+            const dayUsage = group.usage.filter(entry => {
+                const entryDay = entry.date.getDay();
+                return entryDay === index;
+            });
 
-    // Calculate totals with buffer
-    return Array.from(calculations.values()).map(calc => {
-        calc.totalRequired = calc.dailyRequirements.reduce((total, day) =>
-            total + (day.quantity * (day.percentage / 100)), 0);
-        return calc;
+            const avgQuantity = dayUsage.length > 0
+                ? dayUsage.reduce((sum, entry) => sum + entry.quantity, 0) / dayUsage.length
+                : 0;
+
+            const maxUsage = Math.max(...group.usage.map(entry => entry.quantity));
+            const percentage = maxUsage > 0 ? (avgQuantity / maxUsage) * 100 : 0;
+
+            return {
+                day,
+                quantity: avgQuantity,
+                percentage: Math.round(percentage)
+            };
+        });
+
+        const currentDayIndex = currentDate.getDay();
+        const nextDayIndex = (currentDayIndex + 1) % 7;
+
+        const currentDayReq = dailyRequirements[currentDayIndex].quantity;
+        const nextDayReq = dailyRequirements[nextDayIndex].quantity * 0.5;
+
+        return {
+            itemId: group.itemId,
+            name: group.name,
+            unit: group.unit,
+            dailyRequirements,
+            totalRequired: Math.ceil(currentDayReq + nextDayReq),
+            bufferPercentage
+        };
     });
 }
 
-export function formatPrepSheet(calculations: PrepCalculation[]): string {
-    return calculations
-        .map(calc => {
-            const dayBreakdown = calc.dailyRequirements
-                .map(day => `${day.day}: ${day.quantity.toFixed(2)} ${calc.unit} (${day.percentage}%)`)
-                .join('\n');
-
-            return `
-  ${calc.name}
-  ${'-'.repeat(calc.name.length)}
-  ${dayBreakdown}
-  Total Required: ${calc.totalRequired.toFixed(2)} ${calc.unit}
-  `;
-        })
-        .join('\n\n');
+export function processPrepRequirements(
+    dbRequirements: DbPrepRequirement[]
+): PrepRequirement[] {
+    return dbRequirements.map(prepRequirementFromDb);
 }

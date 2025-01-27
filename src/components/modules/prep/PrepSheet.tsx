@@ -2,7 +2,7 @@ import { forwardRef, useState } from 'react';
 import { motion } from 'framer-motion';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
-import { PrepRequirement } from '@/types/prep';
+import { PrepRequirement, PrepTask } from '@/types/prep';
 import { useToast } from '@/components/ui/Toast/ToastContext';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 
@@ -11,8 +11,9 @@ interface PrepSheetProps {
     date: Date;
     requirements: PrepRequirement[];
     showControls?: boolean;
+    onTaskUpdate?: (task: PrepTask) => Promise<void>;
+    isUpdating?: boolean;
 }
-
 interface TaskUpdate {
     id: number;
     completedQuantity: number;

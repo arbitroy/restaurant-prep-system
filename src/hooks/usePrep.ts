@@ -1,50 +1,65 @@
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { PrepItemBase, PrepOrderUpdate } from '@/types/prep';
+import { 
+    PrepItemBase, 
+    PrepOrderUpdate, 
+    PrepSheet, 
+    HistoricalUsage, 
+    PrepItem,
+    PrepSheetName,
+    PREP_SHEETS,
+    UsePrepOptions,
+    UsePrepReturn
+} from '@/types/prep';
 import { ApiResponse } from '@/types/common';
-
-interface UsePrepOptions {
-    restaurantId: number;
-    initialDate?: Date;
-    bufferPercentage?: number;
-}
 
 export function usePrep({
     restaurantId,
     initialDate = new Date(),
     bufferPercentage = 50
-}: UsePrepOptions) {
+}: UsePrepOptions): UsePrepReturn {
     const queryClient = useQueryClient();
     const [selectedDate, setSelectedDate] = useState(initialDate);
-    const [selectedSheet, setSelectedSheet] = useState<string | undefined>();
+    const [selectedSheet, setSelectedSheet] = useState<PrepSheetName | undefined>(PREP_SHEETS[0]);
 
-    // Fetch prep items
-    const { data: prepItemsData, isLoading: isLoadingPrepItems } = useQuery<ApiResponse<PrepItemBase[]>>({
+    // Prep Items Query
+    const prepItemsQuery = useQuery<ApiResponse<PrepItem[]>>({
         queryKey: ['prepItems', restaurantId],
         queryFn: async () => {
             const response = await fetch(`/api/items/prep?restaurantId=${restaurantId}`);
-            if (!response.ok) throw new Error('Failed to fetch prep items');
+            if (!response.ok) {
+                const error = await response.json();
+                throw new Error(error.message || 'Failed to fetch prep items');
+            }
             return response.json();
         }
     });
 
-    // Fetch historical sales data
-    const { data: historicalSales, isLoading: isLoadingHistory, error: historyError } = useQuery({
+    // Historical Sales Query
+    const historicalSalesQuery = useQuery<ApiResponse<HistoricalUsage[]>>({
         queryKey: ['sales-history', restaurantId, selectedDate],
         queryFn: async () => {
-            const startDate = new Date();
-            startDate.setDate(startDate.getDate() - 28); // 4 weeks of history
+            const startDate = new Date(selectedDate);
+            startDate.setDate(startDate.getDate() - 28);
 
-            const response = await fetch(
-                `/api/sales/history?restaurantId=${restaurantId}&startDate=${startDate.toISOString()}&endDate=${selectedDate.toISOString()}`
-            );
-            if (!response.ok) throw new Error('Failed to fetch sales history');
+            const params = new URLSearchParams({
+                restaurantId: restaurantId.toString(),
+                startDate: startDate.toISOString(),
+                endDate: selectedDate.toISOString()
+            });
+
+            const response = await fetch(`/api/sales/history?${params}`);
+            if (!response.ok) {
+                const error = await response.json();
+                throw new Error(error.message || 'Failed to fetch sales history');
+            }
             return response.json();
-        }
+        },
+        staleTime: 1000 * 60 * 5 // 5 minutes
     });
 
-    // Fetch prep sheets
-    const { data: prepSheets, isLoading: isLoadingPrep, error: prepError } = useQuery({
+    // Prep Sheets Query
+    const prepSheetsQuery = useQuery<ApiResponse<PrepSheet[]>>({
         queryKey: ['prep-sheets', restaurantId, selectedDate, bufferPercentage, selectedSheet],
         queryFn: async () => {
             const params = new URLSearchParams({
@@ -58,54 +73,66 @@ export function usePrep({
             }
 
             const response = await fetch(`/api/prep?${params}`);
-            if (!response.ok) throw new Error('Failed to fetch prep sheets');
+            if (!response.ok) {
+                const error = await response.json();
+                throw new Error(error.message || 'Failed to fetch prep sheets');
+            }
             return response.json();
         }
     });
 
-    // Update prep item order mutation
+    // Update Order Mutation
     const updatePrepItemOrderMutation = useMutation({
         mutationFn: async (items: PrepOrderUpdate[]) => {
-            const orderUpdates = items.map(({ id, order, sheetName }) => ({
-                id,
-                order,
-                sheetName
-            }));
-
             const response = await fetch('/api/prep/order', {
                 method: 'PUT',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ items: orderUpdates })
+                body: JSON.stringify({ items })
             });
 
             if (!response.ok) {
-                throw new Error('Failed to update item order');
+                const error = await response.json();
+                throw new Error(error.message || 'Failed to update item order');
             }
             return response.json();
         },
         onSuccess: () => {
-            // Invalidate and refetch queries that are affected by this mutation
-            queryClient.invalidateQueries({ queryKey: ['prepItems', restaurantId] });
-            queryClient.invalidateQueries({ queryKey: ['prep-sheets', restaurantId] });
+            // Invalidate relevant queries
+            queryClient.invalidateQueries({ 
+                queryKey: ['prepItems', restaurantId] 
+            });
+            queryClient.invalidateQueries({ 
+                queryKey: ['prep-sheets', restaurantId] 
+            });
         }
     });
 
-    // Ensure we have valid data structures even when loading
-    const sanitizedPrepSheets = prepSheets?.data || [];
-    const sanitizedHistoricalSales = historicalSales?.data || [];
-    const sanitizedPrepItems = (prepItemsData?.data || []) as PrepItemBase[];
+    // Determine loading and error states
+    const isLoading = 
+        prepItemsQuery.isLoading || 
+        historicalSalesQuery.isLoading || 
+        prepSheetsQuery.isLoading;
 
-    const error = historyError || prepError;
+    const error = 
+        prepItemsQuery.error || 
+        historicalSalesQuery.error || 
+        prepSheetsQuery.error || null;
 
+    // Compile return value
     return {
-        prepSheets: sanitizedPrepSheets,
-        historicalSales: sanitizedHistoricalSales,
-        prepItems: sanitizedPrepItems,
-        isLoading: isLoadingHistory || isLoadingPrep || isLoadingPrepItems,
-        error,
+        // Data
+        prepSheets: prepSheetsQuery.data?.data || [],
+        historicalSales: historicalSalesQuery.data?.data || [],
+        prepItems: prepItemsQuery.data?.data || [],
+        
+        // State
+        isLoading,
+        error: error instanceof Error ? error : null,
         selectedDate,
-        setSelectedDate,
         selectedSheet,
+        
+        // Actions
+        setSelectedDate,
         setSelectedSheet,
         updatePrepItemOrder: updatePrepItemOrderMutation.mutateAsync,
         isUpdatingOrder: updatePrepItemOrderMutation.isPending
