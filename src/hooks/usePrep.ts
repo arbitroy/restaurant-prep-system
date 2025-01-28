@@ -58,7 +58,7 @@ export function usePrep({
         staleTime: 1000 * 60 * 5 // 5 minutes
     });
 
-    // Prep Sheets Query
+    // Prep Sheets Query with order handling
     const prepSheetsQuery = useQuery<ApiResponse<PrepSheet[]>>({
         queryKey: ['prep-sheets', restaurantId, selectedDate, bufferPercentage, selectedSheet],
         queryFn: async () => {
@@ -67,18 +67,27 @@ export function usePrep({
                 date: selectedDate.toISOString(),
                 bufferPercentage: bufferPercentage.toString()
             });
-
+    
             if (selectedSheet) {
                 params.append('sheetName', selectedSheet);
             }
-
+    
             const response = await fetch(`/api/prep?${params}`);
             if (!response.ok) {
-                const error = await response.json();
-                throw new Error(error.message || 'Failed to fetch prep sheets');
+                const errorData = await response.json();
+                throw new Error(errorData.error || 'Failed to fetch prep sheets');
             }
-            return response.json();
-        }
+    
+            const data = await response.json();
+            console.log('Prep sheets response:', data);
+            
+            if (!data.data) {
+                throw new Error('No data returned from server');
+            }
+    
+            return data;
+        },
+        retry: 1
     });
 
     // Update Order Mutation
@@ -86,24 +95,27 @@ export function usePrep({
         mutationFn: async (items: PrepOrderUpdate[]) => {
             const response = await fetch('/api/prep/order', {
                 method: 'PUT',
-                headers: { 'Content-Type': 'application/json' },
+                headers: {
+                    'Content-Type': 'application/json'
+                },
                 body: JSON.stringify({ items })
             });
-
+            
             if (!response.ok) {
                 const error = await response.json();
                 throw new Error(error.message || 'Failed to update item order');
             }
+            
             return response.json();
         },
         onSuccess: () => {
-            // Invalidate relevant queries
-            queryClient.invalidateQueries({ 
-                queryKey: ['prepItems', restaurantId] 
-            });
-            queryClient.invalidateQueries({ 
-                queryKey: ['prep-sheets', restaurantId] 
-            });
+            // Invalidate both prep sheets and prep items to ensure order is updated everywhere
+            queryClient.invalidateQueries({ queryKey: ['prep-sheets', restaurantId] });
+            queryClient.invalidateQueries({ queryKey: ['prepItems', restaurantId] });
+        },
+        onError: (error) => {
+            console.error('Error updating prep order:', error);
+            throw error;
         }
     });
 
@@ -118,7 +130,6 @@ export function usePrep({
         historicalSalesQuery.error || 
         prepSheetsQuery.error || null;
 
-    // Compile return value
     return {
         // Data
         prepSheets: prepSheetsQuery.data?.data || [],

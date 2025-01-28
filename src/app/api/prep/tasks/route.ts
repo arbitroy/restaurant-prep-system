@@ -1,5 +1,16 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { query } from '@/lib/db';
+import { ApiResponse } from '@/types/common';
+import { DatabaseError } from '@/types/errors';
+import { z } from 'zod';
+import { PrepTask } from '@/types/prep';
+
+const TaskUpdateSchema = z.object({
+    id: z.number(),
+    completedQuantity: z.number().optional(),
+    status: z.enum(['pending', 'in_progress', 'completed']).optional(),
+    notes: z.string().optional()
+});
 
 
 export async function GET(request: NextRequest) {
@@ -77,32 +88,102 @@ export async function POST(request: NextRequest) {
     }
 }
 
-export async function PUT(request: NextRequest) {
+export async function PUT(request: NextRequest): Promise<NextResponse<ApiResponse<PrepTask>>> {
     try {
         const body = await request.json();
-        const { id, completedQuantity, status, notes } = body;
+        const validated = TaskUpdateSchema.parse(body);
 
-        const { rows } = await query({
+        const updateFields: string[] = [];
+        const values: (string | number | null)[] = [validated.id];
+        let paramCount = 2;
+
+        if (validated.completedQuantity !== undefined) {
+            updateFields.push(`completed_quantity = $${paramCount}`);
+            values.push(validated.completedQuantity);
+            paramCount++;
+        }
+
+        if (validated.status !== undefined) {
+            updateFields.push(`status = $${paramCount}`);
+            values.push(validated.status);
+            paramCount++;
+
+            if (validated.status === 'completed') {
+                updateFields.push('completed_at = CURRENT_TIMESTAMP');
+            }
+        }
+
+        if (validated.notes !== undefined) {
+            updateFields.push(`notes = $${paramCount}`);
+            values.push(validated.notes);
+            paramCount++;
+        }
+
+        if (updateFields.length === 0) {
+            return NextResponse.json(
+                {
+                    status: 'error',
+                    error: 'No fields to update'
+                },
+                { status: 400 }
+            );
+        }
+
+        const { rows } = await query<PrepTask>({
             text: `
-                UPDATE prep_tasks
-                SET 
-                    completed_quantity = $2,
-                    status = $3,
-                    notes = $4,
-                    completed_at = CASE WHEN $3 = 'completed' THEN CURRENT_TIMESTAMP ELSE NULL END
-                WHERE id = $1
-                RETURNING *
-            `,
-            values: [id, completedQuantity, status, notes]
+          UPDATE prep_tasks
+          SET ${updateFields.join(', ')},
+              updated_at = CURRENT_TIMESTAMP
+          WHERE id = $1
+          RETURNING *
+        `,
+            values
         });
+
+        if (rows.length === 0) {
+            return NextResponse.json(
+                {
+                    status: 'error',
+                    error: 'Task not found'
+                },
+                { status: 404 }
+            );
+        }
 
         return NextResponse.json({
             status: 'success',
             data: rows[0]
         });
-    } catch {
+
+    } catch (error) {
+        console.error('Error updating prep task:', error);
+
+        if (error instanceof z.ZodError) {
+            return NextResponse.json(
+                {
+                    status: 'error',
+                    error: 'Invalid request data',
+                    details: error.errors
+                },
+                { status: 400 }
+            );
+        }
+
+        if (error instanceof DatabaseError) {
+            return NextResponse.json(
+                {
+                    status: 'error',
+                    error: error.message
+                },
+                { status: 500 }
+            );
+        }
+
         return NextResponse.json(
-            { error: 'Failed to update prep task' },
+            {
+                status: 'error',
+                error: 'Internal server error'
+            },
             { status: 500 }
         );
     }

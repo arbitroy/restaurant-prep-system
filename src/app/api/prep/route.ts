@@ -8,9 +8,9 @@ import { z } from 'zod';
 const GetRequestSchema = z.object({
     restaurantId: z.string().transform(val => parseInt(val)),
     date: z.string().transform(str => new Date(str)),
-    sheetName: z.enum(PREP_SHEETS).optional()
+    sheetName: z.enum(PREP_SHEETS).optional(),
+    order: z.string().optional().transform(val => val ? parseInt(val) : undefined)
 });
-
 export async function POST(request: NextRequest) {
     try {
         const body = await request.json();

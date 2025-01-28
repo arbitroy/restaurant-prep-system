@@ -1,10 +1,7 @@
 import { 
     HistoricalUsage, 
     PrepCalculation, 
-    PrepRequirement,
-    DailyRequirement,
-    DbPrepRequirement,
-    prepRequirementFromDb
+    DailyRequirement 
 } from '@/types/prep';
 
 export const DAYS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
@@ -14,7 +11,13 @@ export function calculateDailyPrep(
     currentDate: Date,
     bufferPercentage: number
 ): PrepCalculation[] {
-    const itemGroups = historicalData.reduce((groups, entry) => {
+    // Ensure dates are Date objects
+    const processedData = historicalData.map(entry => ({
+        ...entry,
+        date: entry.date instanceof Date ? entry.date : new Date(entry.date)
+    }));
+
+    const itemGroups = processedData.reduce((groups, entry) => {
         if (!groups[entry.prepItemId]) {
             groups[entry.prepItemId] = {
                 itemId: entry.prepItemId,
@@ -35,15 +38,20 @@ export function calculateDailyPrep(
     return Object.values(itemGroups).map(group => {
         const dailyRequirements: DailyRequirement[] = DAYS.map((day, index) => {
             const dayUsage = group.usage.filter(entry => {
-                const entryDay = entry.date.getDay();
-                return entryDay === index;
+                try {
+                    const entryDate = entry.date instanceof Date ? entry.date : new Date(entry.date);
+                    return entryDate.getDay() === index;
+                } catch (e) {
+                    console.error('Invalid date in historical data:', entry.date);
+                    return false;
+                }
             });
 
             const avgQuantity = dayUsage.length > 0
                 ? dayUsage.reduce((sum, entry) => sum + entry.quantity, 0) / dayUsage.length
                 : 0;
 
-            const maxUsage = Math.max(...group.usage.map(entry => entry.quantity));
+            const maxUsage = Math.max(...group.usage.map(entry => entry.quantity), 0);
             const percentage = maxUsage > 0 ? (avgQuantity / maxUsage) * 100 : 0;
 
             return {
@@ -68,10 +76,4 @@ export function calculateDailyPrep(
             bufferPercentage
         };
     });
-}
-
-export function processPrepRequirements(
-    dbRequirements: DbPrepRequirement[]
-): PrepRequirement[] {
-    return dbRequirements.map(prepRequirementFromDb);
 }

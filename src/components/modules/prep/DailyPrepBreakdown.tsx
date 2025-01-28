@@ -1,9 +1,9 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { motion } from 'framer-motion';
 import { calculateDailyPrep } from '@/lib/utils/prepCalculations';
-import _ from 'lodash';
 import { useToast } from '@/components/ui/Toast/ToastContext';
 import { HistoricalUsage, PrepCalculation } from '@/types/prep';
+import _ from 'lodash';
 
 interface DailyPrepBreakdownProps {
     historicalSales: HistoricalUsage[];
@@ -21,18 +21,32 @@ export default function DailyPrepBreakdown({
     const [calculations, setCalculations] = useState<PrepCalculation[]>([]);
     const [localBuffer, setLocalBuffer] = useState(initialBuffer);
     const { showToast } = useToast();
-    
-    const debouncedBufferChange = useRef(_.debounce((value: number) => {
-        onBufferChange(value);
-        showToast(`Buffer updated to ${value}%`, 'success');
-    }, 500));
+
+    // Debounced buffer change handler
+    const debouncedBufferChange = useCallback(
+        _.debounce((value: number) => {
+            onBufferChange(value);
+        }, 300),
+        [onBufferChange]
+    );
 
     useEffect(() => {
         if (historicalSales.length > 0) {
-            const results = calculateDailyPrep(historicalSales, currentDate, localBuffer);
-            setCalculations(results);
+            try {
+                // Ensure dates are properly converted
+                const processedSales = historicalSales.map(sale => ({
+                    ...sale,
+                    date: new Date(sale.date)
+                }));
+                
+                const results = calculateDailyPrep(processedSales, currentDate, localBuffer);
+                setCalculations(results);
+            } catch (error) {
+                console.error('Error calculating prep requirements:', error);
+                showToast('Error calculating prep requirements', 'error');
+            }
         }
-    }, [historicalSales, currentDate, localBuffer]);
+    }, [historicalSales, currentDate, localBuffer, showToast]);
 
     const handleBufferChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         const value = parseInt(e.target.value);
@@ -41,12 +55,12 @@ export default function DailyPrepBreakdown({
             return;
         }
         setLocalBuffer(value);
-        debouncedBufferChange.current(value);
+        debouncedBufferChange(value);
     };
 
     return (
         <div className="space-y-6">
-            <div className="flex items-center gap-4">
+            <div className="flex items-center gap-4 bg-white p-4 rounded-lg">
                 <label className="text-sm font-medium">Buffer Percentage:</label>
                 <input
                     type="range"
@@ -62,16 +76,16 @@ export default function DailyPrepBreakdown({
             <div className="space-y-4">
                 {calculations.map((calc) => (
                     <motion.div
-                        key={calc.itemId}
+                        key={`calc-${calc.itemId}`}
                         initial={{ opacity: 0, y: 20 }}
                         animate={{ opacity: 1, y: 0 }}
                         className="bg-white p-4 rounded-lg shadow-sm"
                     >
                         <h3 className="font-medium text-lg mb-3">{calc.name}</h3>
                         <div className="grid grid-cols-7 gap-2">
-                            {calc.dailyRequirements.map((day, index) => (
+                            {calc.dailyRequirements.map((day, dayIndex) => (
                                 <div
-                                    key={`${calc.itemId}-${day.day}`}
+                                    key={`${calc.itemId}-day-${dayIndex}`}
                                     className={`p-2 rounded ${
                                         day.percentage > 0 ? 'bg-[#abac7f]/20' : 'bg-gray-50'
                                     }`}

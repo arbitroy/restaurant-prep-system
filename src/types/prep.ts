@@ -24,6 +24,7 @@ export interface DbPrepRequirement {
     name: string;
     unit: string;
     sheet_name: string;
+    order: number;
     required_quantity: number;
     buffer_quantity: number;
     minimum_quantity: number;
@@ -80,7 +81,9 @@ export interface PrepRequirement extends PrepItemBase {
     quantity: number;
     bufferQuantity: number;
     minimumQuantity: number;
+    order: number;
     menuItems: MenuItem[];
+    task?: PrepTask;
 }
 
 export interface HistoricalUsage {
@@ -115,11 +118,11 @@ export interface PrepSheet {
 // Interface for prep tasks
 export interface PrepTask {
     id: number;
+    restaurantId: number;
     prepItemId: number;
     requiredQuantity: number;
     completedQuantity?: number;
-    status: PrepStatus;
-    assignedTo?: string;
+    status: 'pending' | 'in_progress' | 'completed';
     notes?: string;
     date: Date;
 }
@@ -172,6 +175,7 @@ export const prepRequirementFromDb = (db: DbPrepRequirement): PrepRequirement =>
     name: db.name,
     unit: db.unit,
     sheetName: db.sheet_name,
+    order: db.order ?? 0,
     quantity: db.required_quantity,
     bufferQuantity: db.buffer_quantity,
     minimumQuantity: db.minimum_quantity,
@@ -288,4 +292,59 @@ export interface PrepItemFormData {
     unit: string;
     sheetName: string;
     order?: number;
+}
+
+
+export interface DbPrepTask {
+    id: number;
+    restaurant_id: number;
+    prep_item_id: number;
+    required_quantity: number;
+    completed_quantity: number;
+    status: 'pending' | 'in_progress' | 'completed';
+    assigned_to: string | null;
+    notes: string | null;
+    date: string;
+    completed_at: string | null;
+    created_at: string;
+    updated_at: string;
+}
+
+export interface PrepTask {
+    id: number;
+    restaurantId: number;
+    prepItemId: number;
+    requiredQuantity: number;
+    completedQuantity?: number;
+    status: 'pending' | 'in_progress' | 'completed';
+    assignedTo?: string;
+    notes?: string;
+    date: Date;
+    completedAt?: Date;
+    createdAt: Date;
+    updatedAt: Date;
+}
+
+export function prepTaskFromDb(db: DbPrepTask): PrepTask {
+    return {
+        id: db.id,
+        restaurantId: db.restaurant_id,
+        prepItemId: db.prep_item_id,
+        requiredQuantity: db.required_quantity,
+        completedQuantity: db.completed_quantity,
+        status: db.status,
+        assignedTo: db.assigned_to || undefined,
+        notes: db.notes || undefined,
+        date: new Date(db.date),
+        completedAt: db.completed_at ? new Date(db.completed_at) : undefined,
+        createdAt: new Date(db.created_at),
+        updatedAt: new Date(db.updated_at)
+    };
+}
+
+export interface TaskUpdate {
+    id: number;
+    completedQuantity: number;
+    status: 'pending' | 'in_progress' | 'completed';
+    notes?: string;
 }

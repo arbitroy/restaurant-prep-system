@@ -1,207 +1,126 @@
-import { forwardRef, useState } from 'react';
+import { useState } from 'react';
 import { motion } from 'framer-motion';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
-import { PrepRequirement, PrepTask } from '@/types/prep';
-import { useToast } from '@/components/ui/Toast/ToastContext';
-import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { PrepRequirement, TaskUpdate } from '@/types/prep';
 
 interface PrepSheetProps {
     title: string;
     date: Date;
     requirements: PrepRequirement[];
     showControls?: boolean;
-    onTaskUpdate?: (task: PrepTask) => Promise<void>;
+    onTaskUpdate?: (update: TaskUpdate) => Promise<void>;
     isUpdating?: boolean;
 }
-interface TaskUpdate {
-    id: number;
-    completedQuantity: number;
-    status: 'pending' | 'in_progress' | 'completed';
-    notes?: string;
-}
 
-export const PrepSheet = forwardRef<HTMLDivElement, PrepSheetProps>(
-    ({ title, date, requirements, showControls = true }, ref) => {
-        const { showToast } = useToast();
-        const queryClient = useQueryClient();
-        const [completedQuantities, setCompletedQuantities] = useState<Record<number, number>>({});
-        const [notes, setNotes] = useState<Record<number, string>>({});
-        const [updatingItems, setUpdatingItems] = useState<Record<number, boolean>>({});
+export function PrepSheet({
+    title,
+    date,
+    requirements,
+    showControls = true,
+    onTaskUpdate,
+    isUpdating
+}: PrepSheetProps) {
+    const [quantities, setQuantities] = useState<Record<number, number>>({});
+    const [notes, setNotes] = useState<Record<number, string>>({});
 
-        // Update prep task mutation
-        const updateTask = useMutation({
-            mutationFn: async (params: TaskUpdate) => {
-                const response = await fetch('/api/prep/tasks', {
-                    method: 'PUT',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(params)
-                });
-                if (!response.ok) throw new Error('Failed to update task');
-                return response.json();
-            },
-            onMutate: (variables) => {
-                // Optimistic update
-                setUpdatingItems(prev => ({ ...prev, [variables.id]: true }));
-            },
-            onSuccess: (_, variables) => {
-                showToast('Task updated successfully', 'success');
-                queryClient.invalidateQueries({ queryKey: ['prepTasks'] });
-                // Clear form state for this item
-                setCompletedQuantities(prev => {
-                    const newState = { ...prev };
-                    delete newState[variables.id];
-                    return newState;
-                });
-                setNotes(prev => {
-                    const newState = { ...prev };
-                    delete newState[variables.id];
-                    return newState;
-                });
-            },
-            onError: (error) => {
-                showToast(error.message || 'Failed to update task', 'error');
-            },
-            onSettled: (_, __, variables) => {
-                setUpdatingItems(prev => ({ ...prev, [variables.id]: false }));
-            }
-        });
+    const handleComplete = async (req: PrepRequirement) => {
+        if (!onTaskUpdate) return;
 
-        const handleComplete = async (requirement: PrepRequirement) => {
-            const completedQuantity = completedQuantities[requirement.id] || 0;
-            
-            // Validate input
-            if (completedQuantity <= 0) {
-                showToast('Please enter a valid quantity', 'error');
-                return;
-            }
+        const completedQuantity = quantities[req.id] || 0;
+        if (completedQuantity <= 0) return;
 
-            if (completedQuantity < requirement.quantity) {
-                if (!confirm('Completed quantity is less than required. Mark as in progress?')) {
-                    return;
-                }
-            }
-
-            try {
-                await updateTask.mutateAsync({
-                    id: requirement.id,
-                    completedQuantity,
-                    status: completedQuantity >= requirement.quantity ? 'completed' : 'in_progress',
-                    notes: notes[requirement.id]
-                });
-            } catch (error) {
-                // Error is handled by mutation error callback
-            }
+        const update: TaskUpdate = {
+            id: req.id,
+            completedQuantity,
+            status: completedQuantity >= req.quantity ? 'completed' : 'in_progress',
+            notes: notes[req.id]
         };
 
-        // Ensure requirements array is unique
-        const uniqueRequirements = requirements.filter((req, index, self) =>
-            index === self.findIndex((r) => r.id === req.id)
-        );
+        await onTaskUpdate(update);
 
-        return (
-            <div ref={ref} className="bg-white p-8">
-                <div className="max-w-4xl mx-auto">
-                    <div className="text-center mb-8">
-                        <h2 className="text-2xl font-bold">{title}</h2>
-                        <p className="text-gray-500">
-                            {date.toLocaleDateString(undefined, {
-                                weekday: 'long',
-                                year: 'numeric',
-                                month: 'long',
-                                day: 'numeric'
-                            })}
-                        </p>
-                    </div>
+        // Clear inputs after update
+        setQuantities(prev => ({ ...prev, [req.id]: 0 }));
+        setNotes(prev => ({ ...prev, [req.id]: '' }));
+    };
 
-                    <div className="space-y-4">
-                        {uniqueRequirements.map((item) => (
-                            <motion.div
-                                key={`prep-item-${item.id}-${date.toISOString()}`}
-                                initial={showControls ? { opacity: 0, y: 20 } : false}
-                                animate={{ opacity: 1, y: 0 }}
-                                className={`p-4 border rounded-lg ${
-                                    updatingItems[item.id] ? 'bg-gray-50' : ''
-                                }`}
-                            >
-                                <div className="flex justify-between items-start">
-                                    <div>
-                                        <h4 className="font-medium">{item.name}</h4>
-                                        <p className="text-sm text-gray-500">
-                                            Required: {item.quantity} {item.unit}
-                                        </p>
-                                    </div>
-                                    {showControls && (
-                                        <div className="space-y-2">
-                                            <Input
-                                                type="number"
-                                                value={completedQuantities[item.id] || ''}
-                                                onChange={(e) => setCompletedQuantities(prev => ({
-                                                    ...prev,
-                                                    [item.id]: Number(e.target.value)
-                                                }))}
-                                                placeholder="Completed amount"
-                                                className="w-32"
-                                                disabled={updatingItems[item.id]}
-                                            />
-                                            <Input
-                                                value={notes[item.id] || ''}
-                                                onChange={(e) => setNotes(prev => ({
-                                                    ...prev,
-                                                    [item.id]: e.target.value
-                                                }))}
-                                                placeholder="Add notes"
-                                                disabled={updatingItems[item.id]}
-                                            />
-                                            <Button
-                                                size="sm"
-                                                onClick={() => handleComplete(item)}
-                                                className="w-full"
-                                                isLoading={updatingItems[item.id]}
-                                                disabled={updatingItems[item.id]}
-                                            >
-                                                {updatingItems[item.id] ? 'Updating...' : 'Complete'}
-                                            </Button>
-                                        </div>
-                                    )}
-                                </div>
-                                {item.status && (
-                                    <div className="mt-2">
-                                        <span className={`px-2 py-1 text-xs rounded ${
-                                            item.status === 'completed' 
-                                                ? 'bg-green-100 text-green-800'
-                                                : item.status === 'in_progress'
-                                                ? 'bg-yellow-100 text-yellow-800'
-                                                : 'bg-gray-100 text-gray-800'
-                                        }`}>
-                                            {item.status}
-                                        </span>
-                                    </div>
-                                )}
-                            </motion.div>
-                        ))}
-                    </div>
+    const getStatusColor = (req: PrepRequirement) => {
+        if (!req.task) return 'border-gray-200';
+        switch (req.task.status) {
+            case 'completed': return 'bg-green-50 border-green-200';
+            case 'in_progress': return 'bg-yellow-50 border-yellow-200';
+            default: return 'border-gray-200';
+        }
+    };
 
-                    {!showControls && (
-                        <div className="mt-8 pt-8 border-t">
-                            <div className="grid grid-cols-3 gap-8">
-                                <div>
-                                    <p className="text-sm text-gray-500">Prepared By</p>
-                                    <div className="h-8 border-b border-gray-300 mt-2" />
-                                </div>
-                                <div>
-                                    <p className="text-sm text-gray-500">Checked By</p>
-                                    <div className="h-8 border-b border-gray-300 mt-2" />
-                                </div>
-                                <div>
-                                    <p className="text-sm text-gray-500">Date/Time</p>
-                                    <div className="h-8 border-b border-gray-300 mt-2" />
-                                </div>
-                            </div>
-                        </div>
-                    )}
-                </div>
+    return (
+        <div className="bg-white p-6 rounded-lg shadow-sm">
+            <div className="mb-6">
+                <h2 className="text-xl font-semibold">{title}</h2>
+                <p className="text-gray-500">{date.toLocaleDateString()}</p>
             </div>
-        );
-    }
-);
+
+            <div className="space-y-4">
+                {requirements.map((req) => (
+                    <motion.div
+                        key={req.id}
+                        initial={showControls ? { opacity: 0, y: 20 } : false}
+                        animate={{ opacity: 1, y: 0 }}
+                        className={`p-4 rounded-lg border ${getStatusColor(req)}`}
+                    >
+                        <div className="flex justify-between items-start">
+                            <div>
+                                <h3 className="font-medium">{req.name}</h3>
+                                <p className="text-sm text-gray-600">
+                                    Required: {req.quantity} {req.unit}
+                                </p>
+                                {req.task?.completedQuantity && (
+                                    <p className="text-sm text-green-600">
+                                        Completed: {req.task.completedQuantity} {req.unit}
+                                    </p>
+                                )}
+                                {req.task?.notes && (
+                                    <p className="text-sm text-gray-500 mt-2 italic">
+                                        "{req.task.notes}"
+                                    </p>
+                                )}
+                            </div>
+
+                            {showControls && req.task?.status !== 'completed' && (
+                                <div className="space-y-2">
+                                    <Input
+                                        type="number"
+                                        min="0"
+                                        step="0.1"
+                                        value={quantities[req.id] || ''}
+                                        onChange={e => setQuantities(prev => ({
+                                            ...prev,
+                                            [req.id]: Number(e.target.value)
+                                        }))}
+                                        placeholder={`Enter ${req.unit}`}
+                                        className="w-32"
+                                    />
+                                    <Input
+                                        value={notes[req.id] || ''}
+                                        onChange={e => setNotes(prev => ({
+                                            ...prev,
+                                            [req.id]: e.target.value
+                                        }))}
+                                        placeholder="Add notes"
+                                    />
+                                    <Button
+                                        onClick={() => handleComplete(req)}
+                                        disabled={isUpdating || !quantities[req.id]}
+                                        className="w-full"
+                                    >
+                                        {req.task?.status === 'in_progress' ? 'Update' : 'Complete'}
+                                    </Button>
+                                </div>
+                            )}
+                        </div>
+                    </motion.div>
+                ))}
+            </div>
+        </div>
+    );
+}

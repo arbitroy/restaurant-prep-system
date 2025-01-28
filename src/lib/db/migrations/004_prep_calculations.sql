@@ -10,6 +10,7 @@ RETURNS TABLE (
     name VARCHAR,
     unit VARCHAR,
     sheet_name VARCHAR,
+    "order" INTEGER,  -- Added order field
     required_quantity DECIMAL,
     buffer_quantity DECIMAL,
     minimum_quantity DECIMAL,
@@ -58,6 +59,7 @@ BEGIN
             pi.name,
             pi.unit,
             pi.sheet_name,
+            pi."order",  -- Include order
             COALESCE(cur_day.avg_usage, 0) + 
             COALESCE(next_day.avg_usage * 0.5, 0) as base_quantity,
             COALESCE(ps.buffer_percentage, 50) as buffer_percentage,
@@ -80,11 +82,12 @@ BEGIN
         pc.name,
         pc.unit,
         pc.sheet_name,
+        pc."order",  -- Include in final output
         CEIL(GREATEST(pc.base_quantity, pc.minimum_quantity)) as required_quantity,
         CEIL(pc.base_quantity * (pc.buffer_percentage / 100.0)) as buffer_quantity,
         pc.minimum_quantity,
         pc.menu_items
     FROM prep_calcs pc
-    ORDER BY pc.sheet_name, pc.name;
+    ORDER BY pc.sheet_name, pc."order", pc.name;  -- Order by sheet, then order, then name
 END;
 $$ LANGUAGE plpgsql;
