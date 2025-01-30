@@ -12,7 +12,7 @@ import { usePrep } from '@/hooks/usePrep';
 import { PREP_SHEETS } from '@/lib/constants/prep-items';
 import { useRestaurant } from '@/contexts/RestaurantContext';
 import { useToast } from '@/components/ui/Toast/ToastContext';
-import { PrepView, PrepSheetName, PrepItemFormData, PrepTask, PrepRequirement } from '@/types/prep';
+import { PrepView, PrepItemFormData, PrepRequirement } from '@/types/prep';
 import { usePrepTasks } from '@/hooks/usePrepTasks';
 
 export default function PrepPage() {
@@ -23,7 +23,6 @@ export default function PrepPage() {
     const [bufferPercentage, setBufferPercentage] = useState(50);
     const printRef = useRef<HTMLDivElement>(null);
 
-
     const {
         prepSheets,
         historicalSales,
@@ -32,8 +31,9 @@ export default function PrepPage() {
         error,
         selectedDate,
         setSelectedDate,
-        setSelectedSheet,
         updatePrepItemOrder,
+        isUpdatingOrder,
+        optimisticUpdates
     } = usePrep({
         restaurantId,
         bufferPercentage
@@ -66,7 +66,6 @@ export default function PrepPage() {
         showToast(`Buffer percentage updated to ${value}%`, 'success');
     };
 
-    // Wrap updateTask.mutateAsync to match the expected type
     type UpdateTaskInput = {
         id: number;
         completedQuantity?: number;
@@ -78,13 +77,11 @@ export default function PrepPage() {
         await updateTask.mutateAsync(task);
     };
 
-    // Convert PrepItems to PrepItemFormData for settings form
     const prepItemsForSettings: PrepItemFormData[] = prepItems.map(item => ({
         ...item,
         restaurantId
     }));
 
-    // Render content based on active view
     const renderContent = () => {
         if (isLoading) {
             return (
@@ -95,7 +92,6 @@ export default function PrepPage() {
         }
 
         if (error) {
-            console.error('Detailed error:', error);
             return (
                 <div className="bg-red-50 border border-red-200 rounded-lg p-4 text-red-800">
                     <p>Error loading prep data: {error.message}</p>
@@ -111,16 +107,19 @@ export default function PrepPage() {
         }
 
         switch (activeView) {
-            case 'calculator':
-                const requirements = (prepSheets as unknown) as PrepRequirement[];
+            case 'calculator': {
+                // Transform prepSheets into PrepRequirements array
+                const requirements = (prepSheets as unknown as PrepRequirement[]);
                 return (
                     <div className="space-y-6">
                         <PrepCalculator
-                            requirements={requirements || []}
+                            requirements={requirements}
                             currentDate={selectedDate}
                             bufferPercent={bufferPercentage}
                             restaurantId={restaurantId}
                             onOrderChange={updatePrepItemOrder}
+                            isUpdating={isUpdatingOrder}
+                            optimisticUpdates={optimisticUpdates}
                         />
                         <DailyPrepBreakdown
                             historicalSales={historicalSales}
@@ -130,11 +129,12 @@ export default function PrepPage() {
                         />
                     </div>
                 );
+            }
 
             case 'tasks':
                 return (
                     <div className="space-y-8">
-                        {PREP_SHEETS.map((sheetName: string) => {
+                        {PREP_SHEETS.map((sheetName) => {
                             const sheetRequirements = ((prepSheets as unknown) as PrepRequirement[])
                                 .filter(s => s.sheetName === sheetName);
 
@@ -146,6 +146,7 @@ export default function PrepPage() {
                                     title={sheetName}
                                     date={selectedDate}
                                     requirements={sheetRequirements}
+                                    restaurantId={restaurantId}
                                     showControls
                                     onTaskUpdate={handleTaskUpdate}
                                     isUpdating={updateTask.isLoading}
@@ -156,18 +157,30 @@ export default function PrepPage() {
                 );
 
             case 'print':
+                if (prepSheets.length === 0) {
+                    return (
+                        <div className="p-4 bg-yellow-50 rounded-lg">
+                            <p className="text-yellow-700">No prep sheets available to print.</p>
+                        </div>
+                    );
+                }
+
                 return (
                     <div ref={printRef}>
                         {PREP_SHEETS.map(sheetName => {
-                            const sheet = prepSheets.find(s => s.sheetName === sheetName);
-                            if (!sheet?.items.length) return null;
+                            const sheetRequirements = ((prepSheets as unknown) as PrepRequirement[])
+                                .filter(s => s.sheetName === sheetName);
+
+                            // Only render if we have requirements for this sheet
+                            if (sheetRequirements.length === 0) return null;
 
                             return (
                                 <div key={sheetName} className="mb-8 page-break-after-always">
                                     <PrepSheet
+                                        restaurantId={restaurantId}
                                         title={sheetName}
                                         date={selectedDate}
-                                        requirements={sheet.items}
+                                        requirements={sheetRequirements}
                                         showControls={false}
                                     />
                                 </div>

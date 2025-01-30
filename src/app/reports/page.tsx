@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { motion } from 'framer-motion';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
@@ -25,12 +25,6 @@ const EXPORT_FORMATS = ['csv', 'xlsx'] as const;
 
 type ReportType = typeof REPORT_TYPES[number];
 type ExportFormat = typeof EXPORT_FORMATS[number];
-
-interface ChartProps {
-    data: any[];
-    isLoading: boolean;
-    error: Error | null;
-}
 
 interface DateRange {
     startDate: Date;

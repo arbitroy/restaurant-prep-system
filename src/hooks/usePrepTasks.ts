@@ -8,12 +8,6 @@ interface UsePrepTasksOptions {
     date: Date;
 }
 
-interface UpdateTaskInput {
-    id: number;
-    completedQuantity?: number;
-    status?: 'pending' | 'in_progress' | 'completed';
-    notes?: string;
-}
 
 export function usePrepTasks({ restaurantId, date }: UsePrepTasksOptions) {
     const { showToast } = useToast();
@@ -40,7 +34,6 @@ export function usePrepTasks({ restaurantId, date }: UsePrepTasksOptions) {
     });
 
     // Task update mutation with proper typing
-    
     const updateTask = useMutation({
         mutationFn: async (update: TaskUpdate) => {
             const response = await fetch('/api/prep/tasks', {
@@ -48,7 +41,7 @@ export function usePrepTasks({ restaurantId, date }: UsePrepTasksOptions) {
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
                     ...update,
-                    notes: update.notes || ''  // Ensure notes is always a string
+                    notes: update.notes || ''
                 })
             });
             
@@ -59,14 +52,37 @@ export function usePrepTasks({ restaurantId, date }: UsePrepTasksOptions) {
             
             return response.json();
         },
-        onSuccess: () => {
-            // Invalidate both prep requirements and tasks queries
-            queryClient.invalidateQueries({ 
-                queryKey: ['prep-requirements', restaurantId, date] 
+            // Optimistic update handling
+        onMutate: async () => {
+            // Cancel outgoing refetches
+            await queryClient.cancelQueries({ 
+                queryKey: ['prepTasks', restaurantId, date] 
             });
-            queryClient.invalidateQueries({ 
-                queryKey: ['prep-tasks', restaurantId, date] 
-            });
+    
+            // Snapshot the previous value
+            const previousTasks = queryClient.getQueryData(['prepTasks', restaurantId, date]);
+    
+            // Return context with snapshotted value
+            return { previousTasks };
+        },
+        // Handle success
+        onSuccess: (response, variables) => {
+            queryClient.setQueryData(
+                ['prepTasks', restaurantId, date],
+                (old: any) => ({
+                    status: 'success',
+                    data: old?.data?.map((task: PrepTask) =>
+                        task.id === variables.id ? { ...task, ...response.data } : task
+                    ) || []
+                })
+            );
+        },
+        // Handle error
+        onError: (_err, _newTask, context: any) => {
+            queryClient.setQueryData(
+                ['prepTasks', restaurantId, date],
+                context.previousTasks
+            );
         }
     });
 

@@ -1,9 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { query } from '@/lib/db';
-import { ApiResponse } from '@/types/common';
-import { DatabaseError } from '@/types/errors';
 import { z } from 'zod';
-import { PrepTask } from '@/types/prep';
 
 const TaskUpdateSchema = z.object({
     id: z.number(),

@@ -1,8 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { query } from '@/lib/db';
 import { DatabaseError } from '@/types/errors';
-import { ApiResponse } from '@/types/common';
-import { DbPrepRequirement, PREP_SHEETS, prepRequirementFromDb, PrepSheet, PrepSheetName } from '@/types/prep';
+import {  PREP_SHEETS } from '@/types/prep';
 import { z } from 'zod';
 
 const GetRequestSchema = z.object({

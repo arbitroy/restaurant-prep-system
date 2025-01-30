@@ -197,6 +197,9 @@ export interface PrepHookState {
     error: Error | null;
     selectedDate: Date;
     selectedSheet: PrepSheetName | undefined;
+    isUpdatingOrder: boolean;
+    lastUpdateError?: Error;
+    optimisticUpdates: PrepOrderUpdate[];
 }
 
 export interface PrepHookActions {
@@ -211,6 +214,19 @@ export interface PrepOrderUpdate {
     sheetName: PrepSheetName;
 }
 
+export interface OrderUpdateResponse {
+    id: number;
+    name: string;
+    order: number;
+    sheetName: PrepSheetName;
+}
+
+export type OrderUpdateResult = {
+    success: boolean;
+    data?: OrderUpdateResponse[];
+    error?: string;
+};
+
 export interface UsePrepOptions {
     restaurantId: number;
     initialDate?: Date;
@@ -219,6 +235,7 @@ export interface UsePrepOptions {
 
 export type UsePrepReturn = PrepQueryResponse & PrepHookState & PrepHookActions & {
     isUpdatingOrder: boolean;
+    optimisticUpdates: PrepOrderUpdate[];
 };
 
 // API request/response types
