@@ -24,13 +24,14 @@ export async function POST(request: NextRequest): Promise<NextResponse<ApiRespon
         const validatedData = GenerateTasksSchema.parse(body);
         const { restaurantId, date, requirements } = validatedData;
 
-        // First check for existing tasks
+        // Check for existing tasks but exclude completed ones
         const { rows: existingTasks } = await query({
             text: `
                 SELECT prep_item_id 
                 FROM prep_tasks 
                 WHERE restaurant_id = $1 
                 AND date = $2::date
+                AND status != 'completed'
             `,
             values: [restaurantId, date]
         });
@@ -50,7 +51,7 @@ export async function POST(request: NextRequest): Promise<NextResponse<ApiRespon
             });
         }
 
-        // Instead of using unnest, we'll insert multiple rows
+        // Generate tasks only for items that don't have active tasks
         const values = newRequirements.map((req, index) => 
             `($1, $${index * 2 + 2}, $${index * 2 + 3}, 'pending', $${newRequirements.length * 2 + 2})`
         ).join(', ');
@@ -67,7 +68,6 @@ export async function POST(request: NextRequest): Promise<NextResponse<ApiRespon
             RETURNING id
         `;
 
-        // Flatten the requirements into a single array of values
         const queryValues = [
             restaurantId,
             ...newRequirements.flatMap(req => [req.prepItemId, req.requiredQuantity]),
@@ -89,7 +89,7 @@ export async function POST(request: NextRequest): Promise<NextResponse<ApiRespon
 
     } catch (error) {
         console.error('Error generating prep tasks:', error);
-
+        
         if (error instanceof z.ZodError) {
             return NextResponse.json(
                 { 

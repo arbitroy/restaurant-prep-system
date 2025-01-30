@@ -40,8 +40,16 @@ export interface ReportData {
             percentage: number;
         }>;
     };
-    dailyData: SalesData[];
-    items?: Array<{
+    dailyData: Array<{
+        date: string;
+        total: number;
+        items: Array<{
+            menuItemId: number;
+            name: string;
+            quantity: number;
+        }>;
+    }>;
+    items: Array<{
         menuItemId: number;
         name: string;
         category: string;
@@ -54,17 +62,20 @@ export interface ReportData {
             unit: string;
         }>;
     }>;
-    trends?: {
-        dailyTrends: Array<{
-            date: string;
-            total: number;
-            trend: number;
-        }>;
-        predictions: Array<{
-            date: string;
-            predictedTotal: number;
-        }>;
-    };
+    dailyTrends: Array<{
+        date: string;
+        total: string;
+        trend: number;
+    }>;
+    categoryTrends: Array<{
+        category: string;
+        total: string;
+    }>;
+    predictions: Array<{
+        date: string;
+        predictedTotal: number;
+        trend: number;
+    }>;
 }
 
 export interface PrepRequirementData {

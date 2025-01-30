@@ -6,6 +6,54 @@ interface FlattenedRow {
     [key: string]: string | number | boolean;
 }
 
+interface DailyData {
+    date: string;
+    total: number;
+    items?: Array<{
+        menuItemId: number;
+        name: string;
+        quantity: number;
+    }>;
+}
+
+interface TrendData extends DailyData {
+    trend: number;
+    ema: number;
+}
+
+
+export function calculateTrends(data: DailyData[]): TrendData[] {
+    // Constants for EMA calculation
+    const smoothingFactor = 0.3; // Adjustable between 0 and 1
+    const minDataPoints = 2; // Minimum points needed for trend
+
+    return data.map((day, index, array) => {
+        // Calculate trend percentage
+        let trend = 0;
+        if (index >= minDataPoints) {
+            const prevTotal = parseFloat(array[index - 1].total.toString());
+            const currentTotal = parseFloat(day.total.toString());
+            
+            if (prevTotal > 0) {
+                trend = ((currentTotal - prevTotal) / prevTotal) * 100;
+            }
+        }
+
+        // Calculate Exponential Moving Average (EMA)
+        const currentTotal = parseFloat(day.total.toString());
+        const ema = index > 0
+            ? array[index - 1].total * (1 - smoothingFactor) + currentTotal * smoothingFactor
+            : currentTotal;
+
+        return {
+            ...day,
+            trend: parseFloat(trend.toFixed(2)),
+            ema: parseFloat(ema.toFixed(2))
+        };
+    });
+}
+
+
 function flattenSummaryData(summary: ReportData['summary']): FlattenedRow[] {
     const baseData = {
         'Total Sales': summary.totalSales,
@@ -72,8 +120,8 @@ export function formatDataForExport(data: ReportData): FlattenedRow[] {
         })));
     }
 
-    if (data.trends?.dailyTrends) {
-        rows.push(...data.trends.dailyTrends.map(trend => ({
+    if (data.dailyTrends) {
+        rows.push(...data.dailyTrends.map(trend => ({
             Type: 'Trend',
             Date: trend.date,
             Total: trend.total,

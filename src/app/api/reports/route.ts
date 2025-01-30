@@ -46,17 +46,45 @@ export async function GET(request: NextRequest) {
 }
 
 async function getSalesReport(restaurantId: number, startDate: Date, endDate: Date) {
-    // Get daily sales
+    // Category data with percentages calculated in SQL
+    const { rows: categoryData } = await query({
+        text: `
+            WITH category_totals AS (
+                SELECT 
+                    m.category,
+                    SUM(s.quantity) as total
+                FROM sales s
+                JOIN menu_items m ON s.menu_item_id = m.id
+                WHERE s.restaurant_id = $1 
+                AND s.date BETWEEN $2 AND $3
+                GROUP BY m.category
+            ),
+            total_sales AS (
+                SELECT SUM(total) as grand_total
+                FROM category_totals
+            )
+            SELECT 
+                ct.category,
+                ct.total,
+                ROUND((ct.total::numeric / ts.grand_total * 100)::numeric, 2) as percentage
+            FROM category_totals ct
+            CROSS JOIN total_sales ts
+            ORDER BY ct.total DESC
+        `,
+        values: [restaurantId, startDate, endDate]
+    });
+
+    // Daily data with proper aggregation
     const { rows: dailyData } = await query({
         text: `
             SELECT 
                 s.date,
                 SUM(s.quantity) as total,
-                json_agg(json_build_object(
+                jsonb_agg(jsonb_build_object(
                     'menuItemId', s.menu_item_id,
                     'name', m.name,
                     'quantity', s.quantity
-                )) as items
+                ) ORDER BY s.quantity DESC) as items
             FROM sales s
             JOIN menu_items m ON s.menu_item_id = m.id
             WHERE s.restaurant_id = $1 
@@ -67,74 +95,105 @@ async function getSalesReport(restaurantId: number, startDate: Date, endDate: Da
         values: [restaurantId, startDate, endDate]
     });
 
-    // Get category summary
-    const { rows: categoryData } = await query({
-        text: `
-            SELECT 
-                m.category,
-                SUM(s.quantity) as total
-            FROM sales s
-            JOIN menu_items m ON s.menu_item_id = m.id
-            WHERE s.restaurant_id = $1 
-            AND s.date BETWEEN $2 AND $3
-            GROUP BY m.category
-        `,
-        values: [restaurantId, startDate, endDate]
-    });
-
-    // Calculate totals
-    const totalSales = dailyData.reduce((sum, day) => sum + parseInt(day.total), 0);
-    const averageDaily = totalSales / Math.max(dailyData.length, 1);
-
     return {
         summary: {
-            totalSales,
-            averageDaily,
-            salesByCategory: categoryData.map(cat => ({
-                ...cat,
-                percentage: (parseInt(cat.total) / totalSales) * 100
-            }))
+            totalSales: categoryData.reduce((sum, cat) => sum + parseInt(cat.total), 0),
+            averageDaily: dailyData.length > 0 
+                ? dailyData.reduce((sum, day) => sum + parseInt(day.total), 0) / dailyData.length 
+                : 0,
+            salesByCategory: categoryData
         },
         dailyData
     };
 }
 
 async function getItemsReport(restaurantId: number, startDate: Date, endDate: Date) {
-    const { rows: items } = await query({
-        text: `
-            SELECT 
-                m.id as menu_item_id,
-                m.name as menu_item_name,
-                m.category,
-                SUM(s.quantity) as total_quantity,
-                AVG(s.quantity) as average_daily,
-                json_agg(DISTINCT jsonb_build_object(
-                    'prepItemId', p.id,
-                    'name', p.name,
-                    'unit', p.unit,
-                    'totalUsage', (s.quantity * pm.quantity)
-                )) as prep_items
-            FROM menu_items m
-            LEFT JOIN sales s ON m.id = s.menu_item_id
-            LEFT JOIN prep_item_mappings pm ON m.id = pm.menu_item_id
-            LEFT JOIN prep_items p ON pm.prep_item_id = p.id
-            WHERE m.restaurant_id = $1 
-            AND (s.date IS NULL OR s.date BETWEEN $2 AND $3)
-            GROUP BY m.id, m.name, m.category
-        `,
-        values: [restaurantId, startDate, endDate]
-    });
+    try {
+        const { rows: items } = await query({
+            text: `
+                WITH item_totals AS (
+                    SELECT 
+                        m.id as menu_item_id,
+                        m.name,
+                        m.category,
+                        COALESCE(SUM(s.quantity), 0) as total_quantity,
+                        COALESCE(AVG(s.quantity), 0) as average_daily
+                    FROM menu_items m
+                    LEFT JOIN sales s ON m.id = s.menu_item_id 
+                        AND s.date BETWEEN $2 AND $3
+                    WHERE m.restaurant_id = $1
+                    GROUP BY m.id, m.name, m.category
+                ),
+                prep_usage AS (
+                    SELECT 
+                        m.id as menu_item_id,
+                        COALESCE(
+                            json_agg(
+                                CASE WHEN p.id IS NOT NULL THEN
+                                    json_build_object(
+                                        'prepItemId', p.id,
+                                        'name', p.name,
+                                        'unit', p.unit,
+                                        'totalUsage', COALESCE(s.quantity * pm.quantity, 0)
+                                    )
+                                END
+                            ) FILTER (WHERE p.id IS NOT NULL),
+                            '[]'
+                        ) as prep_items
+                    FROM menu_items m
+                    LEFT JOIN prep_item_mappings pm ON m.id = pm.menu_item_id
+                    LEFT JOIN prep_items p ON pm.prep_item_id = p.id
+                    LEFT JOIN sales s ON m.id = s.menu_item_id 
+                        AND s.date BETWEEN $2 AND $3
+                    WHERE m.restaurant_id = $1
+                    GROUP BY m.id
+                )
+                SELECT 
+                    it.menu_item_id as "menuItemId",
+                    it.name,
+                    it.category,
+                    it.total_quantity as "totalQuantity",
+                    it.average_daily as "averageDaily",
+                    COALESCE(pu.prep_items, '[]'::json) as "prepItems"
+                FROM item_totals it
+                LEFT JOIN prep_usage pu ON it.menu_item_id = pu.menu_item_id
+                ORDER BY it.total_quantity DESC
+            `,
+            values: [restaurantId, startDate, endDate]
+        });
 
-    return { items };
+        return {
+            items: items.map(item => ({
+                menuItemId: item.menuItemId,
+                name: item.name,
+                category: item.category,
+                totalQuantity: Number(item.totalQuantity) || 0,
+                averageDaily: Number(item.averageDaily) || 0,
+                prepItems: Array.isArray(item.prepItems) 
+                    ? item.prepItems.filter(Boolean).map(prep => ({
+                        prepItemId: prep.prepItemId,
+                        name: prep.name,
+                        totalUsage: Number(prep.totalUsage) || 0,
+                        unit: prep.unit || 'unit'
+                    }))
+                    : []
+            }))
+        };
+    } catch (error) {
+        console.error('Items report error:', error);
+        throw new Error('Failed to generate items report');
+    }
 }
 
 async function getTrendsReport(restaurantId: number, startDate: Date, endDate: Date) {
-    // Get daily trends
-    const { rows: dailyTrends } = await query({
+    const { rows: dailyTrends } = await query<{
+        date: string;
+        total: string;
+    }>({
         text: `
             SELECT 
-                date,
-                SUM(quantity) as total
+                date::text as date,
+                SUM(quantity)::text as total
             FROM sales
             WHERE restaurant_id = $1 
             AND date BETWEEN $2 AND $3
@@ -144,12 +203,14 @@ async function getTrendsReport(restaurantId: number, startDate: Date, endDate: D
         values: [restaurantId, startDate, endDate]
     });
 
-    // Get category trends
-    const { rows: categoryTrends } = await query({
+    const { rows: categoryTrends } = await query<{
+        category: string;
+        total: string;
+    }>({
         text: `
             SELECT 
                 m.category,
-                SUM(s.quantity) as total
+                SUM(s.quantity)::text as total
             FROM sales s
             JOIN menu_items m ON s.menu_item_id = m.id
             WHERE s.restaurant_id = $1 
@@ -159,26 +220,27 @@ async function getTrendsReport(restaurantId: number, startDate: Date, endDate: D
         values: [restaurantId, startDate, endDate]
     });
 
-    // Simple predictions
-    const predictions = dailyTrends.map((day, index, array) => {
-        const trend = index > 0 
-            ? ((parseInt(day.total) - parseInt(array[index - 1].total)) / parseInt(array[index - 1].total)) * 100
-            : 0;
-        return {
-            ...day,
-            trend,
-            predictedTotal: parseInt(day.total) * (1 + (trend / 100))
-        };
-    });
-
+    // Process and return with proper types
     return {
         dailyTrends: dailyTrends.map((day, index) => ({
-            ...day,
+            date: day.date,
+            total: day.total,
             trend: index > 0 
-                ? ((parseInt(day.total) - parseInt(dailyTrends[index - 1].total)) / parseInt(dailyTrends[index - 1].total)) * 100
+                ? ((parseInt(day.total) - parseInt(dailyTrends[index - 1].total)) / 
+                   parseInt(dailyTrends[index - 1].total)) * 100
                 : 0
         })),
-        categoryTrends,
-        predictions
+        categoryTrends: categoryTrends.map(cat => ({
+            category: cat.category,
+            total: cat.total
+        })),
+        predictions: dailyTrends.map((day, index) => ({
+            date: day.date,
+            predictedTotal: parseInt(day.total),
+            trend: index > 0 
+                ? ((parseInt(day.total) - parseInt(dailyTrends[index - 1].total)) / 
+                   parseInt(dailyTrends[index - 1].total)) * 100
+                : 0
+        }))
     };
 }

@@ -12,7 +12,7 @@ import { usePrep } from '@/hooks/usePrep';
 import { PREP_SHEETS } from '@/lib/constants/prep-items';
 import { useRestaurant } from '@/contexts/RestaurantContext';
 import { useToast } from '@/components/ui/Toast/ToastContext';
-import { PrepView, PrepSheetName, PrepItemFormData, PrepTask } from '@/types/prep';
+import { PrepView, PrepSheetName, PrepItemFormData, PrepTask, PrepRequirement } from '@/types/prep';
 import { usePrepTasks } from '@/hooks/usePrepTasks';
 
 export default function PrepPage() {
@@ -22,7 +22,7 @@ export default function PrepPage() {
     const [activeView, setActiveView] = useState<PrepView>('calculator');
     const [bufferPercentage, setBufferPercentage] = useState(50);
     const printRef = useRef<HTMLDivElement>(null);
-    
+
 
     const {
         prepSheets,
@@ -40,8 +40,6 @@ export default function PrepPage() {
     });
 
     const {
-        tasks,
-        isLoading: isLoadingTasks,
         updateTask
     } = usePrepTasks({
         restaurantId,
@@ -68,21 +66,6 @@ export default function PrepPage() {
         showToast(`Buffer percentage updated to ${value}%`, 'success');
     };
 
-    const handleOrderChange = async (sheetName: PrepSheetName, items: typeof prepSheets[number]['items']) => {
-        try {
-            await updatePrepItemOrder(
-                items.map((item, index) => ({
-                    id: item.id,
-                    order: index,
-                    sheetName
-                }))
-            );
-            showToast('Item order updated successfully', 'success');
-        } catch {
-            showToast('Failed to update item order', 'error');
-        }
-    };
-
     // Wrap updateTask.mutateAsync to match the expected type
     type UpdateTaskInput = {
         id: number;
@@ -103,9 +86,6 @@ export default function PrepPage() {
 
     // Render content based on active view
     const renderContent = () => {
-        console.log('Loading state:', isLoading);
-        console.log('Error state:', error);
-        console.log('Prep sheets:', prepSheets);
         if (isLoading) {
             return (
                 <div className="flex justify-center items-center h-64">
@@ -132,10 +112,11 @@ export default function PrepPage() {
 
         switch (activeView) {
             case 'calculator':
+                const requirements = (prepSheets as unknown) as PrepRequirement[];
                 return (
                     <div className="space-y-6">
                         <PrepCalculator
-                            requirements={prepSheets.flatMap(sheet => sheet.items)}
+                            requirements={requirements || []}
                             currentDate={selectedDate}
                             bufferPercent={bufferPercentage}
                             restaurantId={restaurantId}
@@ -153,16 +134,18 @@ export default function PrepPage() {
             case 'tasks':
                 return (
                     <div className="space-y-8">
-                        {PREP_SHEETS.map(sheetName => {
-                            const sheet = prepSheets.find(s => s.sheetName === sheetName);
-                            if (!sheet?.items.length) return null;
+                        {PREP_SHEETS.map((sheetName: string) => {
+                            const sheetRequirements = ((prepSheets as unknown) as PrepRequirement[])
+                                .filter(s => s.sheetName === sheetName);
 
+                            // Only render if we have requirements for this sheet
+                            if (sheetRequirements.length === 0) return null;
                             return (
                                 <PrepSheet
                                     key={`${sheetName}-${selectedDate.toISOString()}`}
                                     title={sheetName}
                                     date={selectedDate}
-                                    requirements={sheet.items}
+                                    requirements={sheetRequirements}
                                     showControls
                                     onTaskUpdate={handleTaskUpdate}
                                     isUpdating={updateTask.isLoading}

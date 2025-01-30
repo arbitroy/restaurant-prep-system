@@ -52,7 +52,7 @@ export interface PrepItemBase {
     id: number;
     name: string;
     unit: string;
-    sheetName: string;
+    sheetName: PrepSheetName;
     order?: number;
 }
 
@@ -121,7 +121,7 @@ export interface PrepTask {
     restaurantId: number;
     prepItemId: number;
     requiredQuantity: number;
-    completedQuantity?: number;
+    completedQuantity: number;
     status: 'pending' | 'in_progress' | 'completed';
     notes?: string;
     date: Date;
@@ -163,7 +163,7 @@ export const prepItemFromDb = (db: DbPrepItem): PrepItem => ({
     restaurantId: db.restaurant_id,
     name: db.name,
     unit: db.unit,
-    sheetName: db.sheet_name,
+    sheetName: db.sheet_name as PrepSheetName,
     bufferPercentage: db.buffer_percentage,
     minimumQuantity: db.minimum_quantity,
     createdAt: new Date(db.created_at),
@@ -174,7 +174,7 @@ export const prepRequirementFromDb = (db: DbPrepRequirement): PrepRequirement =>
     id: db.prep_item_id,
     name: db.name,
     unit: db.unit,
-    sheetName: db.sheet_name,
+    sheetName: db.sheet_name as PrepSheetName,
     order: db.order ?? 0,
     quantity: db.required_quantity,
     bufferQuantity: db.buffer_quantity,
@@ -315,7 +315,7 @@ export interface PrepTask {
     restaurantId: number;
     prepItemId: number;
     requiredQuantity: number;
-    completedQuantity?: number;
+    completedQuantity: number;
     status: 'pending' | 'in_progress' | 'completed';
     assignedTo?: string;
     notes?: string;
@@ -344,7 +344,16 @@ export function prepTaskFromDb(db: DbPrepTask): PrepTask {
 
 export interface TaskUpdate {
     id: number;
-    completedQuantity: number;
-    status: 'pending' | 'in_progress' | 'completed';
+    completedQuantity?: number;
+    status?: 'pending' | 'in_progress' | 'completed';
     notes?: string;
+}
+
+export function isPrepRequirement(obj: any): obj is PrepRequirement {
+    return obj &&
+        typeof obj === 'object' &&
+        'id' in obj &&
+        'sheetName' in obj &&
+        typeof obj.sheetName === 'string' &&
+        PREP_SHEETS.includes(obj.sheetName as PrepSheetName);
 }

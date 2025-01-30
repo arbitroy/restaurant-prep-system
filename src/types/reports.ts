@@ -71,3 +71,20 @@ export interface TrendReport {
         confidence: number;
     }>;
 }
+
+
+export interface PrepItemUsage {
+    prepItemId: number;
+    name: string;
+    unit: string;
+    totalUsage: number;
+}
+
+export interface ItemUsage {
+    menuItemId: number;
+    name: string;
+    category: string;
+    totalQuantity: number;
+    averageDaily: number;
+    prepItems: PrepItemUsage[];
+}

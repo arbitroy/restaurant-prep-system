@@ -1,13 +1,13 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { motion, Reorder } from 'framer-motion';
 import { Button } from '@/components/ui/Button';
 import { Select } from '@/components/ui/Select';
 import { PREP_SHEETS } from '@/lib/constants/prep-items';
-import { PrepRequirement, PrepOrderUpdate } from '@/types/prep';
+import { PrepRequirement, PrepOrderUpdate, PrepSheet } from '@/types/prep';
 import { useToast } from '@/components/ui/Toast/ToastContext';
 
 interface Props {
-    requirements: PrepRequirement[];
+    requirements: PrepRequirement[]
     currentDate: Date;
     bufferPercent: number;
     restaurantId: number;
@@ -23,13 +23,16 @@ export const PrepCalculator = ({
     restaurantId,
     onOrderChange
 }: Props) => {
+
     const { showToast } = useToast();
     const [selectedSheet, setSelectedSheet] = useState<typeof PREP_SHEETS[number]>(PREP_SHEETS[0]);
     const [expandedItems, setExpandedItems] = useState(new Set<number>());
 
-    useEffect(() => {
-        if (requirements.length > 0) {
-            fetch('/api/prep/tasks/generate', {
+    const generateTasks = useCallback(async () => {
+        if (requirements.length === 0) return;
+    
+        try {
+            const response = await fetch('/api/prep/tasks/generate', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
@@ -40,24 +43,29 @@ export const PrepCalculator = ({
                         requiredQuantity: Number(req.quantity)
                     }))
                 })
-            }).then(response => {
-                if (!response.ok) throw new Error('Failed to generate tasks');
-                return response.json();
-            }).then(data => {
-                if (data.tasksGenerated > 0) {
-                    showToast(`Generated ${data.tasksGenerated} prep tasks`, 'success');
-                }
-            }).catch(error => {
-                console.error('Error generating tasks:', error);
-                showToast('Failed to generate prep tasks', 'error');
             });
+    
+            if (!response.ok) {
+                throw new Error('Failed to generate tasks');
+            }
+    
+            const data = await response.json();
+            if (data.data.tasksGenerated > 0) {
+                showToast(`Generated ${data.data.tasksGenerated} new prep tasks`, 'success');
+            }
+        } catch (error) {
+            console.error('Error generating tasks:', error);
+            showToast('Failed to generate prep tasks', 'error');
         }
     }, [requirements, currentDate, restaurantId, showToast]);
 
-    // Filter and sort items by sheet and order
-    const sheetItems = requirements
-        .filter(req => req.sheetName === selectedSheet)
-        .sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
+    useEffect(() => {
+        generateTasks();
+    }, [currentDate]);
+
+    // Filter requirements by selected sheet
+    const sheetItems = requirements.filter(req => req.sheetName === selectedSheet)
+        .sort((a, b) => (a.order - b.order));
 
     const handleReorder = async (reorderedItems: PrepRequirement[]) => {
         try {
@@ -109,81 +117,86 @@ export const PrepCalculator = ({
                     Buffer: {bufferPercent}%
                 </div>
             </div>
-
-            <Reorder.Group
-                axis="y"
-                values={sheetItems}
-                onReorder={handleReorder}
-                className="space-y-4"
-            >
-                {sheetItems.map((req) => (
-                    <Reorder.Item
-                        key={req.id}
-                        value={req}
-                        className="bg-white p-4 rounded-lg shadow-sm hover:shadow-md transition-shadow cursor-move"
-                    >
-                        <motion.div onClick={() => toggleExpand(req.id)}>
-                            <div className="flex justify-between items-center">
-                                <div>
-                                    <h4 className="font-medium">{req.name}</h4>
-                                    <p className="text-sm text-gray-500">
-                                        {Number(req.quantity).toFixed(1)} {req.unit}
-                                    </p>
-                                </div>
-                                <div className="flex items-center space-x-4">
-                                    <Button
-                                        variant="outline"
-                                        size="sm"
-                                        onClick={(e) => {
-                                            e.stopPropagation();
-                                            toggleExpand(req.id);
-                                        }}
-                                    >
-                                        {expandedItems.has(req.id) ? 'Collapse' : 'Details'}
-                                    </Button>
-                                    <div className="text-gray-400 cursor-grab">☰</div>
-                                </div>
-                            </div>
-
-                            {expandedItems.has(req.id) && (
-                                <motion.div
-                                    initial={{ height: 0, opacity: 0 }}
-                                    animate={{ height: 'auto', opacity: 1 }}
-                                    exit={{ height: 0, opacity: 0 }}
-                                    className="mt-4 pt-4 border-t"
-                                >
-                                    <div className="grid grid-cols-7 gap-2">
-                                        {DAYS.map((day, i) => {
-                                            const isCurrentDay = i === currentDate.getDay();
-                                            const isNextDay = i === (currentDate.getDay() + 1) % 7;
-                                            const quantity = isCurrentDay ? Number(req.quantity) :
-                                                isNextDay ? calculateNextDayBuffer(req.quantity) : 0;
-
-                                            return (
-                                                <div
-                                                    key={`${req.id}-${day}`}
-                                                    className={`p-2 rounded ${quantity > 0 ? 'bg-[#abac7f]/20' : 'bg-gray-50'
-                                                        }`}
-                                                >
-                                                    <div className="text-xs font-medium">{day}</div>
-                                                    <div className="text-sm">
-                                                        {quantity.toFixed(1)} {req.unit}
-                                                    </div>
-                                                    {quantity > 0 && (
-                                                        <div className="text-xs text-gray-500">
-                                                            {isCurrentDay ? '100%' : `${bufferPercent}%`}
-                                                        </div>
-                                                    )}
-                                                </div>
-                                            );
-                                        })}
+            {sheetItems.length > 0 ? (
+                <Reorder.Group
+                    axis="y"
+                    values={sheetItems}
+                    onReorder={handleReorder}
+                    className="space-y-4"
+                >
+                    {sheetItems.map((req) => (
+                        <Reorder.Item
+                            key={req.id}
+                            value={req}
+                            className="bg-white p-4 rounded-lg shadow-sm hover:shadow-md transition-shadow cursor-move"
+                        >
+                            <motion.div onClick={() => toggleExpand(req.id)}>
+                                <div className="flex justify-between items-center">
+                                    <div>
+                                        <h4 className="font-medium">{req.name}</h4>
+                                        <p className="text-sm text-gray-500">
+                                            {Number(req.quantity).toFixed(1)} {req.unit}
+                                        </p>
                                     </div>
-                                </motion.div>
-                            )}
-                        </motion.div>
-                    </Reorder.Item>
-                ))}
-            </Reorder.Group>
+                                    <div className="flex items-center space-x-4">
+                                        <Button
+                                            variant="outline"
+                                            size="sm"
+                                            onClick={(e) => {
+                                                e.stopPropagation();
+                                                toggleExpand(req.id);
+                                            }}
+                                        >
+                                            {expandedItems.has(req.id) ? 'Collapse' : 'Details'}
+                                        </Button>
+                                        <div className="text-gray-400 cursor-grab">☰</div>
+                                    </div>
+                                </div>
+
+                                {expandedItems.has(req.id) && (
+                                    <motion.div
+                                        initial={{ height: 0, opacity: 0 }}
+                                        animate={{ height: 'auto', opacity: 1 }}
+                                        exit={{ height: 0, opacity: 0 }}
+                                        className="mt-4 pt-4 border-t"
+                                    >
+                                        <div className="grid grid-cols-7 gap-2">
+                                            {DAYS.map((day, i) => {
+                                                const isCurrentDay = i === currentDate.getDay();
+                                                const isNextDay = i === (currentDate.getDay() + 1) % 7;
+                                                const quantity = isCurrentDay ? Number(req.quantity) :
+                                                    isNextDay ? calculateNextDayBuffer(req.quantity) : 0;
+
+                                                return (
+                                                    <div
+                                                        key={`${req.id}-${day}`}
+                                                        className={`p-2 rounded ${quantity > 0 ? 'bg-[#abac7f]/20' : 'bg-gray-50'
+                                                            }`}
+                                                    >
+                                                        <div className="text-xs font-medium">{day}</div>
+                                                        <div className="text-sm">
+                                                            {quantity.toFixed(1)} {req.unit}
+                                                        </div>
+                                                        {quantity > 0 && (
+                                                            <div className="text-xs text-gray-500">
+                                                                {isCurrentDay ? '100%' : `${bufferPercent}%`}
+                                                            </div>
+                                                        )}
+                                                    </div>
+                                                );
+                                            })}
+                                        </div>
+                                    </motion.div>
+                                )}
+                            </motion.div>
+                        </Reorder.Item>
+                    ))}
+                </Reorder.Group>
+            ) : (
+                <div className="text-center py-8 text-gray-500">
+                    No prep items found for {selectedSheet}
+                </div>
+            )}
         </div>
     );
 };

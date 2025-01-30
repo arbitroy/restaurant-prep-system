@@ -79,7 +79,6 @@ export function usePrep({
             }
     
             const data = await response.json();
-            console.log('Prep sheets response:', data);
             
             if (!data.data) {
                 throw new Error('No data returned from server');

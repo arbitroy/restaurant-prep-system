@@ -62,76 +62,74 @@ export async function POST(request: NextRequest) {
 export async function GET(request: NextRequest) {
     try {
         const { searchParams } = new URL(request.url);
-        
-        // Validate request parameters
-        const validated = GetRequestSchema.safeParse({
-            restaurantId: searchParams.get('restaurantId'),
-            date: searchParams.get('date'),
-            sheetName: searchParams.get('sheetName')
-        });
+        const restaurantId = searchParams.get('restaurantId');
+        const date = searchParams.get('date');
+        const sheetName = searchParams.get('sheetName');
 
-        if (!validated.success) {
+        if (!restaurantId || !date) {
             return NextResponse.json(
-                { 
-                    status: 'error',
-                    error: 'Invalid request parameters',
-                    details: validated.error.errors
-                },
+                { error: 'Restaurant ID and date are required' },
                 { status: 400 }
             );
         }
 
-        // Construct query with optional sheet name filter
-        const sqlQuery = `
-            SELECT * FROM calculate_prep_requirements($1, $2::DATE)
-            ${validated.data.sheetName ? 'WHERE sheet_name = $3' : ''}
-            ORDER BY sheet_name, name
-        `;
-
-        const values = [
-            validated.data.restaurantId,
-            validated.data.date.toISOString(),
-            validated.data.sheetName ?? null
-        ];
-
-        // Execute query with proper typing
-        const { rows } = await query<DbPrepRequirement>({
-            text: sqlQuery,
-            values
+        // Updated query to include prep_tasks data
+        const { rows } = await query({
+            text: `
+                WITH prep_requirements AS (
+                    SELECT * FROM calculate_prep_requirements($1, $2::date)
+                    ${sheetName ? 'WHERE sheet_name = $3' : ''}
+                ),
+                grouped_tasks AS (
+                    SELECT 
+                        prep_item_id,
+                        jsonb_agg(
+                            jsonb_build_object(
+                                'id', id,
+                                'prepItemId', prep_item_id,
+                                'completedQuantity', completed_quantity,
+                                'status', status,
+                                'notes', notes,
+                                'completedAt', completed_at
+                            )
+                        ) as tasks
+                    FROM prep_tasks
+                    WHERE restaurant_id = $1 AND date = $2::date
+                    GROUP BY prep_item_id
+                )
+                SELECT 
+                    pr.*,
+                    gt.tasks
+                FROM prep_requirements pr
+                LEFT JOIN grouped_tasks gt ON gt.prep_item_id = pr.prep_item_id
+                ORDER BY pr.sheet_name, pr."order", pr.name
+            `,
+            values: [restaurantId, date, sheetName].filter(Boolean)
         });
 
-        // Transform and group results
-        const sheets = rows.reduce((acc: PrepSheet[], row) => {
-            const sheet = acc.find(s => s.sheetName === row.sheet_name);
-            const requirement = prepRequirementFromDb(row);
+        // Transform rows with proper task handling
+        const transformedRows = rows.map(row => ({
+            id: row.prep_item_id,
+            name: row.name,
+            unit: row.unit,
+            sheetName: row.sheet_name,
+            order: row.order || 0,
+            quantity: row.required_quantity,
+            bufferQuantity: row.buffer_quantity,
+            minimumQuantity: row.minimum_quantity,
+            menuItems: row.menu_items || [],
+            // Take the first active task or most recent one
+            task: row.tasks?.[0] || undefined
+        }));
 
-            if (sheet) {
-                sheet.items.push(requirement);
-            } else {
-                acc.push({
-                    sheetName: row.sheet_name as PrepSheetName,
-                    date: validated.data.date,
-                    items: [requirement]
-                });
-            }
-            return acc;
-        }, []);
-
-        const response: ApiResponse<PrepSheet[]> = {
+        return NextResponse.json({
             status: 'success',
-            data: sheets
-        };
-
-        return NextResponse.json(response);
+            data: transformedRows
+        });
     } catch (error) {
-        console.error('Error calculating prep requirements:', error);
-        
+        console.error('Error fetching prep requirements:', error);
         return NextResponse.json(
-            { 
-                status: 'error', 
-                error: 'Failed to calculate prep requirements',
-                details: error instanceof Error ? error.message : undefined
-            },
+            { error: 'Failed to fetch prep requirements' },
             { status: 500 }
         );
     }

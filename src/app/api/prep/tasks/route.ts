@@ -7,9 +7,9 @@ import { PrepTask } from '@/types/prep';
 
 const TaskUpdateSchema = z.object({
     id: z.number(),
-    completedQuantity: z.number().optional(),
+    completedQuantity: z.number(),
     status: z.enum(['pending', 'in_progress', 'completed']).optional(),
-    notes: z.string().optional()
+    notes: z.string()
 });
 
 
@@ -88,102 +88,77 @@ export async function POST(request: NextRequest) {
     }
 }
 
-export async function PUT(request: NextRequest): Promise<NextResponse<ApiResponse<PrepTask>>> {
+export async function PUT(request: NextRequest): Promise<NextResponse> {
     try {
         const body = await request.json();
         const validated = TaskUpdateSchema.parse(body);
 
-        const updateFields: string[] = [];
-        const values: (string | number | null)[] = [validated.id];
-        let paramCount = 2;
-
-        if (validated.completedQuantity !== undefined) {
-            updateFields.push(`completed_quantity = $${paramCount}`);
-            values.push(validated.completedQuantity);
-            paramCount++;
-        }
-
-        if (validated.status !== undefined) {
-            updateFields.push(`status = $${paramCount}`);
-            values.push(validated.status);
-            paramCount++;
-
-            if (validated.status === 'completed') {
-                updateFields.push('completed_at = CURRENT_TIMESTAMP');
-            }
-        }
-
-        if (validated.notes !== undefined) {
-            updateFields.push(`notes = $${paramCount}`);
-            values.push(validated.notes);
-            paramCount++;
-        }
-
-        if (updateFields.length === 0) {
-            return NextResponse.json(
-                {
-                    status: 'error',
-                    error: 'No fields to update'
-                },
-                { status: 400 }
-            );
-        }
-
-        const { rows } = await query<PrepTask>({
-            text: `
-          UPDATE prep_tasks
-          SET ${updateFields.join(', ')},
-              updated_at = CURRENT_TIMESTAMP
-          WHERE id = $1
-          RETURNING *
-        `,
-            values
+        // Get existing task
+        const { rows: [existingTask] } = await query({
+            text: 'SELECT * FROM prep_tasks WHERE id = $1',
+            values: [validated.id]
         });
 
-        if (rows.length === 0) {
+        if (!existingTask) {
             return NextResponse.json(
-                {
-                    status: 'error',
-                    error: 'Task not found'
-                },
+                { error: 'Task not found' },
                 { status: 404 }
             );
         }
 
-        return NextResponse.json({
-            status: 'success',
-            data: rows[0]
-        });
-
-    } catch (error) {
-        console.error('Error updating prep task:', error);
-
-        if (error instanceof z.ZodError) {
+        // Validation checks
+        if (existingTask.status === 'completed') {
             return NextResponse.json(
-                {
-                    status: 'error',
-                    error: 'Invalid request data',
-                    details: error.errors
-                },
+                { error: 'Cannot update completed task' },
                 { status: 400 }
             );
         }
 
-        if (error instanceof DatabaseError) {
+        if (validated.completedQuantity && 
+            validated.completedQuantity > existingTask.required_quantity) {
             return NextResponse.json(
-                {
-                    status: 'error',
-                    error: error.message
-                },
-                { status: 500 }
+                { error: 'Completed quantity cannot exceed required quantity' },
+                { status: 400 }
             );
         }
 
+        // Determine status based on completed quantity
+        const newStatus = validated.completedQuantity >= existingTask.required_quantity
+            ? 'completed'
+            : validated.completedQuantity > 0
+                ? 'in_progress'
+                : 'pending';
+
+        // Update task
+        const { rows: [updatedTask] } = await query({
+            text: `
+                UPDATE prep_tasks
+                SET 
+                    completed_quantity = COALESCE($1, completed_quantity),
+                    status = $2,
+                    notes = COALESCE($3, notes),
+                    completed_at = $4,
+                    updated_at = CURRENT_TIMESTAMP
+                WHERE id = $5
+                RETURNING *
+            `,
+            values: [
+                validated.completedQuantity,
+                newStatus,
+                validated.notes,
+                newStatus === 'completed' ? new Date() : null,
+                validated.id
+            ]
+        });
+
+        return NextResponse.json({
+            status: 'success',
+            data: updatedTask
+        });
+    } catch (error) {
+        console.error('Error updating task:', error);
         return NextResponse.json(
-            {
-                status: 'error',
-                error: 'Internal server error'
-            },
+            { error: 'Failed to update task' },
             { status: 500 }
         );
     }

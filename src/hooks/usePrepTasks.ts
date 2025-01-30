@@ -1,5 +1,5 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { PrepTask } from '@/types/prep';
+import { PrepTask, TaskUpdate } from '@/types/prep';
 import { useToast } from '@/components/ui/Toast/ToastContext';
 import { ApiResponse } from '@/types/common';
 
@@ -40,62 +40,44 @@ export function usePrepTasks({ restaurantId, date }: UsePrepTasksOptions) {
     });
 
     // Task update mutation with proper typing
+    
     const updateTask = useMutation({
-        mutationFn: async (update: UpdateTaskInput): Promise<PrepTask> => {
+        mutationFn: async (update: TaskUpdate) => {
             const response = await fetch('/api/prep/tasks', {
                 method: 'PUT',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(update)
+                body: JSON.stringify({
+                    ...update,
+                    notes: update.notes || ''  // Ensure notes is always a string
+                })
             });
             
             if (!response.ok) {
-                throw new Error('Failed to update task');
+                const error = await response.json();
+                throw new Error(error.error || 'Failed to update task');
             }
             
-            const result: ApiResponse<PrepTask> = await response.json();
-            if (!result.data) {
-                throw new Error('No data returned from server');
-            }
-            return result.data;
+            return response.json();
         },
-        onMutate: async (newTask) => {
-            await queryClient.cancelQueries({
-                queryKey: ['prepTasks', restaurantId, date]
+        onSuccess: () => {
+            // Invalidate both prep requirements and tasks queries
+            queryClient.invalidateQueries({ 
+                queryKey: ['prep-requirements', restaurantId, date] 
             });
-            
-            const previousTasks = queryClient.getQueryData<PrepTask[]>(
-                ['prepTasks', restaurantId, date]
-            );
-
-            queryClient.setQueryData<PrepTask[]>(
-                ['prepTasks', restaurantId, date],
-                old => (old ?? []).map(task =>
-                    task.id === newTask.id ? { ...task, ...newTask } : task
-                )
-            );
-
-            return { previousTasks };
-        },
-        onError: (error, variables, context) => {
-            if (context?.previousTasks) {
-                queryClient.setQueryData(
-                    ['prepTasks', restaurantId, date],
-                    context.previousTasks
-                );
-            }
-            showToast(error instanceof Error ? error.message : 'Failed to update task', 'error');
-        },
-        onSuccess: (data) => {
-            showToast('Task updated successfully', 'success');
-            queryClient.invalidateQueries({
-                queryKey: ['prepTasks', restaurantId, date]
+            queryClient.invalidateQueries({ 
+                queryKey: ['prep-tasks', restaurantId, date] 
             });
         }
     });
 
+    const filterTasks = (tasks: PrepTask[], showCompleted: boolean = false) => {
+        return tasks.filter(task => showCompleted || task.status !== 'completed');
+    };
+
     return {
         tasks,
         isLoading,
+        filterTasks,
         updateTask: {
             mutate: updateTask.mutate,
             mutateAsync: updateTask.mutateAsync,
