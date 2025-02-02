@@ -366,11 +366,20 @@ export interface TaskUpdate {
     notes?: string;
 }
 
-export function isPrepRequirement(obj: any): obj is PrepRequirement {
-    return obj &&
+export function isPrepRequirement(obj: unknown): obj is PrepRequirement {
+    return !!obj &&
         typeof obj === 'object' &&
         'id' in obj &&
         'sheetName' in obj &&
         typeof obj.sheetName === 'string' &&
         PREP_SHEETS.includes(obj.sheetName as PrepSheetName);
+}
+
+export interface QueryData<T> {
+    status: 'success' | 'error';
+    data: T[];
+}
+
+export interface MutationContext {
+    previousTasks: PrepTask[];
 }

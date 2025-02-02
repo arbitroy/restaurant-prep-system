@@ -98,7 +98,7 @@ export default function ReportsPage() {
 
         try {
             const exportData = formatDataForExport(reportData.data);
-            
+
             switch (format) {
                 case 'csv':
                     exportCSV(exportData, `${reportType}_report`);
@@ -107,7 +107,7 @@ export default function ReportsPage() {
                     exportXLSX(exportData, `${reportType}_report`);
                     break;
             }
-            
+
             showToast(`Report exported successfully as ${format.toUpperCase()}`, 'success');
         } catch (error) {
             const errorMessage = error instanceof Error ? error.message : 'Export failed';
@@ -204,20 +204,28 @@ function ReportContent({ type, data }: { type: ReportType; data: ReportData }) {
     }
 }
 
-function SalesReport({ data }: { data: ReportData }) {
+const SalesReport = ({ data }: { data: ReportData }) => {
     const categoryData = React.useMemo(() => {
+        if (!data?.summary?.salesByCategory) return [];
         return data.summary.salesByCategory.map(category => ({
             ...category,
             total: parseFloat(category.total.toString()),
             percentage: parseFloat(category.percentage.toString())
         }));
-    }, [data.summary.salesByCategory]);
+    }, [data?.summary?.salesByCategory]);
 
-    const chartData = data.dailyData.map(day => ({
-        ...day,
-        date: new Date(day.date).toLocaleDateString(),
-        total: parseInt(day.total.toString()),
-    }));
+    const chartData = React.useMemo(() => {
+        if (!data?.dailyData) return [];
+        return data.dailyData.map(day => ({
+            ...day,
+            date: new Date(day.date).toLocaleDateString(),
+            total: parseInt(day.total.toString()),
+        }));
+    }, [data?.dailyData]);
+
+    if (!data) {
+        return null;
+    }
 
     return (
         <>
@@ -293,13 +301,13 @@ function SalesReport({ data }: { data: ReportData }) {
                                 }}
                             >
                                 {categoryData.map((entry, index) => (
-                                    <Cell 
-                                        key={`cell-${entry.category}`} 
+                                    <Cell
+                                        key={`cell-${entry.category}`}
                                         fill={COLORS[index % COLORS.length]}
                                     />
                                 ))}
                             </Pie>
-                            <Tooltip 
+                            <Tooltip
                                 formatter={(value: number) => [
                                     `${value.toLocaleString()}`,
                                     'Total Sales'
@@ -312,11 +320,11 @@ function SalesReport({ data }: { data: ReportData }) {
                 {/* Added category legend for better visibility */}
                 <div className="mt-4 grid grid-cols-2 gap-4">
                     {categoryData.map((category, index) => (
-                        <div 
+                        <div
                             key={category.category}
                             className="flex items-center space-x-2"
                         >
-                            <div 
+                            <div
                                 className="w-4 h-4 rounded-sm"
                                 style={{ backgroundColor: COLORS[index % COLORS.length] }}
                             />
@@ -332,6 +340,36 @@ function SalesReport({ data }: { data: ReportData }) {
 }
 
 function ItemsReport({ data }: { data: ReportData }) {
+    // Move useMemo calls to the top of the component
+    const chartData = React.useMemo(() => {
+        if (!data?.items?.length) return [];
+
+        return data.items
+            .map(item => ({
+                ...item,
+                totalQuantity: Number(item.totalQuantity) || 0,
+                averageDaily: Number(item.averageDaily) || 0,
+                prepItems: Object.values(
+                    item.prepItems.reduce((acc, prep) => {
+                        const key = `${prep.prepItemId}-${prep.name}-${prep.unit}`;
+                        if (!acc[key]) {
+                            acc[key] = {
+                                ...prep,
+                                totalUsage: 0
+                            };
+                        }
+                        acc[key].totalUsage += prep.totalUsage;
+                        return acc;
+                    }, {} as Record<string, typeof item.prepItems[0]>)
+                ).map(prep => ({
+                    ...prep,
+                    totalUsage: Number(prep.totalUsage.toFixed(2))
+                }))
+            }))
+            .slice(0, 10);
+    }, [data?.items]);
+
+    // Content check moved after hooks
     if (!data?.items?.length) {
         return (
             <div className="col-span-2 bg-white p-6 rounded-lg shadow-sm">
@@ -339,31 +377,6 @@ function ItemsReport({ data }: { data: ReportData }) {
             </div>
         );
     }
-
-    const chartData = data.items
-        .map(item => ({
-            ...item,
-            totalQuantity: Number(item.totalQuantity) || 0,
-            averageDaily: Number(item.averageDaily) || 0,
-            // Aggregate prep items to combine duplicates
-            prepItems: Object.values(
-                item.prepItems.reduce((acc, prep) => {
-                    const key = `${prep.prepItemId}-${prep.name}-${prep.unit}`;
-                    if (!acc[key]) {
-                        acc[key] = {
-                            ...prep,
-                            totalUsage: 0
-                        };
-                    }
-                    acc[key].totalUsage += prep.totalUsage;
-                    return acc;
-                }, {} as Record<string, typeof item.prepItems[0]>)
-            ).map(prep => ({
-                ...prep,
-                totalUsage: Number(prep.totalUsage.toFixed(2))  // Round to 2 decimal places
-            }))
-        }))
-        .slice(0, 10);
 
     return (
         <motion.div
@@ -376,25 +389,25 @@ function ItemsReport({ data }: { data: ReportData }) {
                 <ResponsiveContainer>
                     <BarChart data={chartData}>
                         <CartesianGrid strokeDasharray="3 3" />
-                        <XAxis 
+                        <XAxis
                             dataKey="name"
                             angle={-45}
                             textAnchor="end"
                             height={80}
                         />
                         <YAxis />
-                        <Tooltip 
+                        <Tooltip
                             formatter={(value: number) => value.toFixed(2)}
                             labelFormatter={(label) => `Item: ${label}`}
                         />
                         <Legend />
-                        <Bar 
-                            dataKey="totalQuantity" 
+                        <Bar
+                            dataKey="totalQuantity"
                             name="Total Usage"
                             fill="#373d20"
                         />
-                        <Bar 
-                            dataKey="averageDaily" 
+                        <Bar
+                            dataKey="averageDaily"
                             name="Daily Average"
                             fill="#717744"
                         />
@@ -407,7 +420,7 @@ function ItemsReport({ data }: { data: ReportData }) {
                 <h4 className="text-md font-medium mb-4">Prep Items Breakdown</h4>
                 <div className="space-y-4">
                     {chartData.map((item) => (
-                        <div 
+                        <div
                             key={`menu-item-${item.menuItemId}`}
                             className="bg-gray-50 p-4 rounded-lg"
                         >
@@ -419,7 +432,7 @@ function ItemsReport({ data }: { data: ReportData }) {
                             </div>
                             <div className="mt-2 space-y-2">
                                 {item.prepItems.map((prep, index) => (
-                                    <div 
+                                    <div
                                         key={`${item.menuItemId}-${prep.prepItemId}-${index}`}
                                         className="flex justify-between text-sm"
                                     >
@@ -439,8 +452,26 @@ function ItemsReport({ data }: { data: ReportData }) {
 }
 
 function TrendsReport({ data }: { data: ReportData }) {
-    
-    // Since data contains dailyTrends directly, not nested under trends
+    const processedTrendsData = React.useMemo(() => {
+        if (!data?.dailyTrends?.length) return [];
+        return data.dailyTrends.map(trend => ({
+            date: trend.date,
+            total: Number(trend.total),
+            trend: trend.trend,
+            id: `${trend.date}-${trend.total}`
+        }));
+    }, [data?.dailyTrends]);
+
+    const categoryTrendsData = React.useMemo(() => {
+        if (!data?.categoryTrends) return [];
+        return data.categoryTrends.map(cat => ({
+            category: cat.category,
+            total: parseInt(cat.total),
+            id: `${cat.category}-${cat.total}`
+        }));
+    }, [data?.categoryTrends]);
+
+    // Early return after hooks
     if (!data?.dailyTrends?.length) {
         return (
             <div className="col-span-2 bg-white p-6 rounded-lg shadow-sm">
@@ -449,29 +480,7 @@ function TrendsReport({ data }: { data: ReportData }) {
         );
     }
 
-    // Transform daily trends data without the trends nesting
-    const processedTrendsData = React.useMemo(() => {
-        return data.dailyTrends.map(trend => ({
-            date: trend.date,
-            total: Number(trend.total),
-            trend: trend.trend,
-            id: `${trend.date}-${trend.total}`
-        }));
-    }, [data.dailyTrends]);
-
     const trendsData = calculateTrends(processedTrendsData);
-
-    // Process category trends without the trends nesting
-    const categoryTrendsData = React.useMemo(() => {
-        if (!data.categoryTrends) return [];
-        
-        return data.categoryTrends.map(cat => ({
-            category: cat.category,
-            total: parseInt(cat.total),
-            id: `${cat.category}-${cat.total}`
-        }));
-    }, [data.categoryTrends]);
-
     return (
         <>
             <motion.div
@@ -484,7 +493,7 @@ function TrendsReport({ data }: { data: ReportData }) {
                     <ResponsiveContainer>
                         <LineChart data={trendsData}>
                             <CartesianGrid strokeDasharray="3 3" />
-                            <XAxis 
+                            <XAxis
                                 dataKey="date"
                                 tickFormatter={(value) => new Date(value).toLocaleDateString()}
                             />

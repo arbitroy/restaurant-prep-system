@@ -22,13 +22,6 @@ export default function DailyPrepBreakdown({
     const [localBuffer, setLocalBuffer] = useState(initialBuffer);
     const { showToast } = useToast();
 
-    // Debounced buffer change handler
-    const debouncedBufferChange = useCallback(
-        _.debounce((value: number) => {
-            onBufferChange(value);
-        }, 300),
-        [onBufferChange]
-    );
 
     useEffect(() => {
         if (historicalSales.length > 0) {
@@ -48,15 +41,16 @@ export default function DailyPrepBreakdown({
         }
     }, [historicalSales, currentDate, localBuffer, showToast]);
 
-    const handleBufferChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const handleBufferChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
         const value = parseInt(e.target.value);
         if (isNaN(value) || value < 0 || value > 100) {
             showToast('Buffer must be between 0 and 100', 'error');
             return;
         }
         setLocalBuffer(value);
-        debouncedBufferChange(value);
-    };
+        // Apply debounce directly in the handler
+        _.debounce(() => onBufferChange(value), 300)();
+    }, [onBufferChange, showToast]);
 
     return (
         <div className="space-y-6">

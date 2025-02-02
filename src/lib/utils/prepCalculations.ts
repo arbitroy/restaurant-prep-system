@@ -41,7 +41,7 @@ export function calculateDailyPrep(
                 try {
                     const entryDate = entry.date instanceof Date ? entry.date : new Date(entry.date);
                     return entryDate.getDay() === index;
-                } catch (e) {
+                } catch {
                     console.error('Invalid date in historical data:', entry.date);
                     return false;
                 }

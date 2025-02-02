@@ -26,6 +26,11 @@ interface ValidationState {
     message: string;
 }
 
+interface PrepTaskQueryData {
+    data: PrepTask[];
+    status: string;
+}
+
 // Enhanced PrepSheet component
 export function PrepSheet({
     date,
@@ -50,8 +55,8 @@ export function PrepSheet({
             return { isValid: false, message: 'Quantity cannot be negative' };
         }
         if (quantity > requirement.quantity) {
-            return { 
-                isValid: false, 
+            return {
+                isValid: false,
                 message: `Cannot exceed required quantity (${requirement.quantity} ${requirement.unit})`
             };
         }
@@ -74,14 +79,14 @@ export function PrepSheet({
 
         // Optimistic update
         const oldData = queryClient.getQueryData(['prepTasks', restaurantId, date]);
-        const newStatus: PrepStatus = 
-            completedQuantity >= requirement.quantity ? 'completed' : 
-            completedQuantity > 0 ? 'in_progress' : 'pending';
+        const newStatus: PrepStatus =
+            completedQuantity >= requirement.quantity ? 'completed' :
+                completedQuantity > 0 ? 'in_progress' : 'pending';
 
         // Optimistically update the cache
-        queryClient.setQueryData(['prepTasks', restaurantId, date], (old: any) => ({
+        queryClient.setQueryData(['prepTasks', restaurantId, date], (old: PrepTaskQueryData | undefined) => ({
             ...old,
-            data: (old?.data || []).map((task: PrepTask) => 
+            data: (old?.data || []).map((task: PrepTask) =>
                 task.id === requirement.task?.id
                     ? {
                         ...task,
@@ -101,8 +106,8 @@ export function PrepSheet({
 
             showToast('Task updated successfully', 'success');
             setTaskInputs(prev => ({ ...prev, [requirement.task!.id]: '' }));
-            
-        } catch (error) {
+
+        } catch {
             // Revert optimistic update
             queryClient.setQueryData(['prepTasks', restaurantId, date], oldData);
             showToast('Failed to update task', 'error');
@@ -111,9 +116,10 @@ export function PrepSheet({
         }
     };
 
+
     const handleQuantityChange = (taskId: number, value: string, requirement: PrepRequirement) => {
         setTaskInputs(prev => ({ ...prev, [taskId]: value }));
-        
+
         // Real-time validation
         const validation = validateQuantity(value, requirement);
         setValidationStates(prev => ({ ...prev, [taskId]: validation }));
@@ -121,7 +127,18 @@ export function PrepSheet({
 
     return (
         <div className="bg-white rounded-lg shadow-sm">
-            {/* ... existing header code ... */}
+            <div className="p-4 border-b">
+                <div className="flex justify-between items-center">
+                    <h2 className="text-lg font-medium">
+                        Prep Requirements for {new Date(date).toLocaleDateString()}
+                    </h2>
+                    {showControls && (
+                        <div className="text-sm text-gray-500">
+                            Click items to update progress
+                        </div>
+                    )}
+                </div>
+            </div>
             <div className="p-4">
                 <div className="space-y-4">
                     {requirements.map((requirement: PrepRequirement) => (
@@ -153,13 +170,12 @@ export function PrepSheet({
                                                     min="0"
                                                     max={requirement.quantity}
                                                     step="0.1"
-                                                    className={`w-24 ${
-                                                        validationStates[requirement.task.id]?.isValid === false
+                                                    className={`w-24 ${validationStates[requirement.task.id]?.isValid === false
                                                             ? 'border-red-500'
                                                             : ''
-                                                    }`}
+                                                        }`}
                                                     disabled={
-                                                        updatingTasks[requirement.task.id] || 
+                                                        updatingTasks[requirement.task.id] ||
                                                         requirement.task.status === 'completed'
                                                     }
                                                 />
@@ -182,7 +198,7 @@ export function PrepSheet({
                                                     parseFloat(taskInputs[requirement.task!.id] || '0')
                                                 )}
                                                 disabled={
-                                                    updatingTasks[requirement.task.id] || 
+                                                    updatingTasks[requirement.task.id] ||
                                                     requirement.task.status === 'completed' ||
                                                     !taskInputs[requirement.task.id] ||
                                                     !validationStates[requirement.task.id]?.isValid
@@ -193,13 +209,12 @@ export function PrepSheet({
                                             </Button>
                                         </div>
                                         <motion.div
-                                            className={`flex items-center justify-between px-2 py-1 rounded ${
-                                                requirement.task.status === 'completed' 
-                                                    ? 'bg-green-100 text-green-800' 
-                                                    : requirement.task.status === 'in_progress' 
-                                                    ? 'bg-yellow-100 text-yellow-800'
-                                                    : 'bg-gray-100 text-gray-800'
-                                            }`}
+                                            className={`flex items-center justify-between px-2 py-1 rounded ${requirement.task.status === 'completed'
+                                                    ? 'bg-green-100 text-green-800'
+                                                    : requirement.task.status === 'in_progress'
+                                                        ? 'bg-yellow-100 text-yellow-800'
+                                                        : 'bg-gray-100 text-gray-800'
+                                                }`}
                                         >
                                             <span className="text-sm font-medium">
                                                 {requirement.task.completedQuantity} / {requirement.quantity}

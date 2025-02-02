@@ -1,15 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { query } from '@/lib/db';
 import { DatabaseError } from '@/types/errors';
-import {  PREP_SHEETS } from '@/types/prep';
-import { z } from 'zod';
 
-const GetRequestSchema = z.object({
-    restaurantId: z.string().transform(val => parseInt(val)),
-    date: z.string().transform(str => new Date(str)),
-    sheetName: z.enum(PREP_SHEETS).optional(),
-    order: z.string().optional().transform(val => val ? parseInt(val) : undefined)
-});
+
+
 export async function POST(request: NextRequest) {
     try {
         const body = await request.json();

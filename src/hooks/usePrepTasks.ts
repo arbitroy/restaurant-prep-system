@@ -1,5 +1,5 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { PrepTask, TaskUpdate } from '@/types/prep';
+import { MutationContext, PrepTask, QueryData, TaskUpdate } from '@/types/prep';
 import { useToast } from '@/components/ui/Toast/ToastContext';
 import { ApiResponse } from '@/types/common';
 
@@ -52,37 +52,22 @@ export function usePrepTasks({ restaurantId, date }: UsePrepTasksOptions) {
             
             return response.json();
         },
-            // Optimistic update handling
-        onMutate: async () => {
-            // Cancel outgoing refetches
+        onMutate: async (_newTask) => {
             await queryClient.cancelQueries({ 
                 queryKey: ['prepTasks', restaurantId, date] 
             });
     
-            // Snapshot the previous value
-            const previousTasks = queryClient.getQueryData(['prepTasks', restaurantId, date]);
+            const previousTasks = queryClient.getQueryData<QueryData<PrepTask>>(['prepTasks', restaurantId, date]);
     
-            // Return context with snapshotted value
-            return { previousTasks };
+            return { previousTasks: previousTasks?.data || [] };
         },
-        // Handle success
-        onSuccess: (response, variables) => {
-            queryClient.setQueryData(
-                ['prepTasks', restaurantId, date],
-                (old: any) => ({
-                    status: 'success',
-                    data: old?.data?.map((task: PrepTask) =>
-                        task.id === variables.id ? { ...task, ...response.data } : task
-                    ) || []
-                })
-            );
-        },
-        // Handle error
-        onError: (_err, _newTask, context: any) => {
-            queryClient.setQueryData(
-                ['prepTasks', restaurantId, date],
-                context.previousTasks
-            );
+        onError: (_err: Error, _newTask: TaskUpdate, context: MutationContext | undefined) => {
+            if (context?.previousTasks) {
+                queryClient.setQueryData(
+                    ['prepTasks', restaurantId, date],
+                    { status: 'success', data: context.previousTasks }
+                );
+            }
         }
     });
 

@@ -1,12 +1,12 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { motion, Reorder} from 'framer-motion';
+import { motion, Reorder } from 'framer-motion';
 import { Button } from '@/components/ui/Button';
 import { Select } from '@/components/ui/Select';
 import { PREP_SHEETS } from '@/lib/constants/prep-items';
-import { 
-    PrepRequirement, 
-    PrepOrderUpdate, 
-    PrepSheetName 
+import {
+    PrepRequirement,
+    PrepOrderUpdate,
+    PrepSheetName
 } from '@/types/prep';
 import { useToast } from '@/components/ui/Toast/ToastContext';
 
@@ -35,10 +35,10 @@ export const PrepCalculator: React.FC<PrepCalculatorProps> = ({
     const [selectedSheet, setSelectedSheet] = useState<PrepSheetName>(PREP_SHEETS[0]);
     const [expandedItems, setExpandedItems] = useState(new Set<number>());
     const [, setIsGeneratingTasks] = useState(false);
-    
+
     const generateTasks = useCallback(async () => {
         if (requirements.length === 0) return;
-    
+
         try {
             setIsGeneratingTasks(true);
             const response = await fetch('/api/prep/tasks/generate', {
@@ -53,11 +53,11 @@ export const PrepCalculator: React.FC<PrepCalculatorProps> = ({
                     }))
                 })
             });
-    
+
             if (!response.ok) {
                 throw new Error('Failed to generate tasks');
             }
-    
+
             const data = await response.json();
             if (data.data.tasksGenerated > 0) {
                 showToast(`Generated ${data.data.tasksGenerated} new prep tasks`, 'success');
@@ -72,7 +72,7 @@ export const PrepCalculator: React.FC<PrepCalculatorProps> = ({
 
     useEffect(() => {
         generateTasks();
-    }, [currentDate]);
+    }, [generateTasks, currentDate]);
 
 
     // Filter and sort requirements by selected sheet
@@ -146,7 +146,7 @@ export const PrepCalculator: React.FC<PrepCalculatorProps> = ({
                 >
                     {sheetItems.map((req) => {
                         const isUpdating = isItemBeingUpdated(req.id);
-                        
+
                         return (
                             <Reorder.Item
                                 key={req.id}
@@ -158,7 +158,7 @@ export const PrepCalculator: React.FC<PrepCalculatorProps> = ({
                                 `}
                                 disabled={isUpdating}
                             >
-                                <motion.div 
+                                <motion.div
                                     className="select-none"
                                     onClick={() => toggleExpand(req.id)}
                                     layout

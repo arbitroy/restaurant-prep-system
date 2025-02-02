@@ -66,7 +66,7 @@ export default function ItemsPage() {
         {
             header: 'Prep Items',
             accessor: 'prepItems' as const,
-            render: (value: any) => {
+            render: (value: string | number | Date | PIM[] | undefined) => {
                 return (
                     <span className="px-2 py-1 bg-[#abac7f]/20 rounded-full">
                         {Array.isArray(value) ? value.length : 0}

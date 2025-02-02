@@ -81,11 +81,13 @@ export async function PUT(request: NextRequest): Promise<NextResponse<ApiRespons
 }
 
 // Type guard
-function isValidPrepOrderUpdate(item: any): item is PrepOrderUpdate {
+function isValidPrepOrderUpdate(item: unknown): item is PrepOrderUpdate {
     return (
         typeof item === 'object' &&
-        typeof item.id === 'number' &&
-        typeof item.order === 'number' &&
-        typeof item.sheetName === 'string'
+        typeof (item as PrepOrderUpdate).id === 'number' &&
+        item !== null &&
+        typeof item === 'object' &&
+        typeof (item as PrepOrderUpdate).order === 'number' &&
+        typeof (item as PrepOrderUpdate).sheetName === 'string'
     );
 }
