@@ -1,6 +1,7 @@
 const { Pool } = require('pg');
 const path = require('path');
 const fs = require('fs').promises;
+const dotenv = require('dotenv');
 
 // Load environment variables
 dotenv.config({ path: '.env.local' });
