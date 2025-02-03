@@ -137,8 +137,8 @@ const testData = {
     ],
 
     // Sample sales data (last 30 days)
-    generateSalesData: function(restaurantId: string, menuItems: MenuItem[]): SalesData[] {
-        const sales: SalesData[] = [];
+    generateSalesData(restaurantId: number, menuItemRows: Array<{id: number; name: string}>) {
+        const sales = [];
         const startDate = new Date();
         startDate.setDate(startDate.getDate() - 30);
 
@@ -150,16 +150,21 @@ const testData = {
             const dailyEntries = Math.floor(Math.random() * 11) + 10;
             
             for (let j = 0; j < dailyEntries; j++) {
-                // Random menu item
-                const menuItem = menuItems[Math.floor(Math.random() * menuItems.length)];
+                // Get random menu item from the actual database rows
+                const menuItem = menuItemRows[Math.floor(Math.random() * menuItemRows.length)];
                 
+                if (!menuItem || !menuItem.id) {
+                    console.warn('Invalid menu item found, skipping:', menuItem);
+                    continue;
+                }
+
                 // Random quantity (1-5)
                 const quantity = Math.floor(Math.random() * 5) + 1;
 
                 sales.push({
-                    restaurantId,
-                    menuItemId: menuItem.name,
-                    quantity,
+                    restaurantId: restaurantId,
+                    menuItemId: menuItem.id, // Use the database ID
+                    quantity: quantity,
                     date: currentDate.toISOString()
                 });
             }
