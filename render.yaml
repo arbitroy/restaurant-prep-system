@@ -28,15 +28,6 @@ services:
         fromDatabase:
           name: prep_system_db
           property: database
-    disk:
-      name: tmp
-      mountPath: /tmp
-      sizeGB: 1
-    scaling:
-      minInstances: 1
-      maxInstances: 3
-      targetMemoryPercent: 80
-      targetCPUPercent: 80
 
 databases:
   - name: prep_system_db
