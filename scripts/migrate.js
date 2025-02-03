@@ -48,11 +48,31 @@ async function migrate() {
     try {
         await waitForDatabase(pool);
         
+          // Create migrations table if it doesn't exist
+          await pool.query(`
+            CREATE TABLE IF NOT EXISTS migrations (
+                id SERIAL PRIMARY KEY,
+                name VARCHAR(255) NOT NULL UNIQUE,
+                executed_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            );
+        `);
+
+        // Get list of executed migrations
+        const { rows: executedMigrations } = await pool.query(
+            'SELECT name FROM migrations'
+        );
+        const executedMigrationNames = new Set(executedMigrations.map(row => row.name));
+
         // Run migrations
         const migrationsDir = path.join(__dirname, '../src/lib/db/migrations');
         const files = await fs.readdir(migrationsDir);
         
         for (const file of files.sort()) {
+            if (executedMigrationNames.has(file)) {
+                console.log(`Migration ${file} already executed, skipping...`);
+                continue;
+            }
+
             console.log(`Running migration: ${file}`);
             const sql = await fs.readFile(path.join(migrationsDir, file), 'utf-8');
             
@@ -60,7 +80,7 @@ async function migrate() {
             try {
                 await pool.query(sql);
                 await pool.query(
-                    'INSERT INTO migrations (name) VALUES ($1) ON CONFLICT DO NOTHING',
+                    'INSERT INTO migrations (name) VALUES ($1)',
                     [file]
                 );
                 await pool.query('COMMIT');

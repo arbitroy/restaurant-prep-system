@@ -1,11 +1,11 @@
-CREATE TABLE restaurants (
+CREATE TABLE IF NOT EXISTS restaurants (
   id SERIAL PRIMARY KEY,
   name VARCHAR(255) NOT NULL,
   created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
   updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
 
-CREATE TABLE menu_items (
+CREATE TABLE IF NOT EXISTS menu_items (
   id SERIAL PRIMARY KEY,
   restaurant_id INTEGER REFERENCES restaurants(id) ON DELETE CASCADE,
   name VARCHAR(255) NOT NULL,
@@ -14,7 +14,7 @@ CREATE TABLE menu_items (
   updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
 
-CREATE TABLE prep_items (
+CREATE TABLE IF NOT EXISTS prep_items (
   id SERIAL PRIMARY KEY,
   restaurant_id INTEGER REFERENCES restaurants(id) ON DELETE CASCADE,
   name VARCHAR(255) NOT NULL,
@@ -25,7 +25,7 @@ CREATE TABLE prep_items (
   updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
 
-CREATE TABLE prep_item_mappings (
+CREATE TABLE IF NOT EXISTS prep_item_mappings (
   id SERIAL PRIMARY KEY,
   menu_item_id INTEGER REFERENCES menu_items(id) ON DELETE CASCADE,
   prep_item_id INTEGER REFERENCES prep_items(id) ON DELETE CASCADE,
@@ -35,7 +35,7 @@ CREATE TABLE prep_item_mappings (
   UNIQUE(menu_item_id, prep_item_id)
 );
 
-CREATE TABLE sales (
+CREATE TABLE IF NOT EXISTS sales (
   id SERIAL PRIMARY KEY,
   restaurant_id INTEGER REFERENCES restaurants(id) ON DELETE CASCADE,
   menu_item_id INTEGER REFERENCES menu_items(id) ON DELETE CASCADE,
@@ -44,6 +44,10 @@ CREATE TABLE sales (
   created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
   updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
+
+
+
+
 
 -- Function to update timestamps
 CREATE OR REPLACE FUNCTION update_updated_at_column()
