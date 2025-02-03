@@ -6,21 +6,26 @@ async function waitForDatabase(pool, maxAttempts = 10) {
     for (let attempt = 1; attempt <= maxAttempts; attempt++) {
         try {
             console.log(`Attempt ${attempt}/${maxAttempts} to connect to database...`);
+            console.log('Using connection string:', 
+                process.env.DATABASE_URL ? 'Found DATABASE_URL' : 'Using individual params');
+            
             const client = await pool.connect();
             await client.query('SELECT 1');
             client.release();
             console.log('Successfully connected to database');
             return true;
         } catch (error) {
-            console.log(`Database connection attempt ${attempt}/${maxAttempts} failed:`, error.message);
+            console.error(`Database connection attempt ${attempt}/${maxAttempts} failed:`, error.message);
+            
             if (attempt === maxAttempts) {
                 throw new Error('Failed to connect to database after multiple attempts');
             }
-            // Increase wait time between attempts
-            await new Promise(resolve => setTimeout(resolve, 10000)); // 10 seconds
+            // Increase wait time between attempts exponentially
+            await new Promise(resolve => setTimeout(resolve, Math.min(1000 * Math.pow(2, attempt), 30000)));
         }
     }
 }
+
 async function migrate() {
     console.log('Starting migration process...');
     const pool = new Pool({
