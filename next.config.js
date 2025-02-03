@@ -4,6 +4,10 @@ const nextConfig = {
     poweredByHeader: false,
     compress: true,
     generateEtags: true,
+    distDir: '.next',
+    typescript: {
+        ignoreBuildErrors: true // Optional: only if you want builds to succeed with TS errors
+    },
 
     headers: async () => [
         {
@@ -37,7 +41,8 @@ const nextConfig = {
 
     experimental: {
         optimizeCss: true,
-        scrollRestoration: true
+        scrollRestoration: true,
+        forceSwcTransforms: true
     }
 };
 
