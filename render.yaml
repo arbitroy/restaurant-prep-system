@@ -2,8 +2,13 @@ services:
   - type: web
     name: restaurant-prep-system
     env: node
-    buildCommand: npm install && npm run build
+    plan: standard
+    buildCommand: |
+      npm ci
+      npm run build
     startCommand: npm start
+    healthCheckPath: /api/health
+    autoDeploy: false
     envVars:
       - key: NODE_ENV
         value: production
@@ -19,19 +24,23 @@ services:
         fromDatabase:
           name: prep_system_db
           property: host
-      - key: POSTGRES_PORT
-        fromDatabase:
-          name: prep_system_db
-          property: port
       - key: POSTGRES_DATABASE
         fromDatabase:
           name: prep_system_db
           property: database
-      - key: NEXT_PUBLIC_API_URL
-        value: https://YOUR_APP_NAME.onrender.com/api
+    disk:
+      name: tmp
+      mountPath: /tmp
+      sizeGB: 1
+    scaling:
+      minInstances: 1
+      maxInstances: 3
+      targetMemoryPercent: 80
+      targetCPUPercent: 80
 
 databases:
   - name: prep_system_db
     databaseName: prep_system
     user: prep_system_user
-    plan: starter
+    plan: free
+    ipAllowList: []
