@@ -2,12 +2,11 @@ services:
   - type: web
     name: restaurant-prep-system
     env: node
-    plan: standard
+    plan: free
     buildCommand: |
       npm ci
       npm run build
     startCommand: npm start
-    healthCheckPath: /api/health
     autoDeploy: false
     envVars:
       - key: NODE_ENV
@@ -34,4 +33,3 @@ databases:
     databaseName: prep_system
     user: prep_system_user
     plan: free
-    ipAllowList: []
