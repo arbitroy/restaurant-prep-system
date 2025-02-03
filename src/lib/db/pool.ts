@@ -1,4 +1,3 @@
-// src/lib/db/pool.ts
 import { Pool, PoolConfig, QueryResult, QueryResultRow } from 'pg';
 import * as dotenv from 'dotenv';
 
@@ -101,6 +100,22 @@ export async function transaction<T>(
   } finally {
     client.release();
   }
+}
+
+export async function validateConnection(maxAttempts = 5): Promise<boolean> {
+  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+      try {
+          const client = await pool.connect();
+          await client.query('SELECT 1');
+          client.release();
+          return true;
+      } catch (error) {
+          console.error(`Database connection attempt ${attempt}/${maxAttempts} failed:`, error);
+          if (attempt === maxAttempts) return false;
+          await new Promise(resolve => setTimeout(resolve, 5000));
+      }
+  }
+  return false;
 }
 
 // Export testConnection function for health checks
