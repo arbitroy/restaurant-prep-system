@@ -4,10 +4,10 @@ services:
     env: node
     plan: free
     buildCommand: |
-      npm install
+      npm install --production=false
       npm run build
-      npm run db:setup # This will run migrations and seed
-    startCommand: npm start
+    startCommand: | 
+      npm run db:setup && npm start
     healthCheckPath: /api/health
     autoDeploy: false
     envVars:
