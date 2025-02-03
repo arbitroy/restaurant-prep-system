@@ -2,9 +2,10 @@ const { Pool } = require('pg');
 const path = require('path');
 const fs = require('fs').promises;
 
-async function waitForDatabase(pool, maxAttempts = 5) {
+async function waitForDatabase(pool, maxAttempts = 10) {
     for (let attempt = 1; attempt <= maxAttempts; attempt++) {
         try {
+            console.log(`Attempt ${attempt}/${maxAttempts} to connect to database...`);
             const client = await pool.connect();
             await client.query('SELECT 1');
             client.release();
@@ -15,12 +16,11 @@ async function waitForDatabase(pool, maxAttempts = 5) {
             if (attempt === maxAttempts) {
                 throw new Error('Failed to connect to database after multiple attempts');
             }
-            // Wait 5 seconds before retrying
-            await new Promise(resolve => setTimeout(resolve, 5000));
+            // Increase wait time between attempts
+            await new Promise(resolve => setTimeout(resolve, 10000)); // 10 seconds
         }
     }
 }
-
 async function migrate() {
     console.log('Starting migration process...');
     const pool = new Pool({
