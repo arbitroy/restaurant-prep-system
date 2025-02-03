@@ -16,30 +16,37 @@ class DatabasePool {
   private static getConfig(): DatabaseConfig {
     const isProduction = process.env.NODE_ENV === 'production';
 
-    // Check for Render's provided database URL first
+    // Add debug logging
+    console.log('Environment variables:', {
+      NODE_ENV: process.env.NODE_ENV,
+      DATABASE_URL: process.env.DATABASE_URL ? 'exists' : 'missing',
+      POSTGRES_USER: process.env.POSTGRES_USER ? 'exists' : 'missing',
+    });
+
     if (process.env.DATABASE_URL) {
+      console.log('Using DATABASE_URL connection string');
       return {
         connectionString: process.env.DATABASE_URL,
-        ssl: {
-          rejectUnauthorized: false // Required for Render's SSL connection
-        },
-        max: 20,
-        idleTimeoutMillis: 30000,
-        connectionTimeoutMillis: 5000
+        ssl: isProduction ? {
+          rejectUnauthorized: false
+        } : false,
       };
     }
 
-    // Fallback to individual config parameters
-    return {
+    console.log('Falling back to individual params');
+    const baseConfig: DatabaseConfig = {
       user: process.env.POSTGRES_USER,
       password: process.env.POSTGRES_PASSWORD,
       host: process.env.POSTGRES_HOST,
       port: parseInt(process.env.POSTGRES_PORT || '5432', 10),
       database: process.env.POSTGRES_DATABASE,
-      ssl: isProduction ? {
-        rejectUnauthorized: false
-      } : false
     };
+
+    if (isProduction) {
+      baseConfig.ssl = { rejectUnauthorized: false };
+    }
+
+    return baseConfig;
   }
 
   static getInstance(): Pool {

@@ -1,7 +1,7 @@
 services:
   - type: web
+    runtime: node
     name: restaurant-prep-system
-    env: node
     plan: free
     buildCommand: |
       npm install --production=false
@@ -33,6 +33,10 @@ services:
         fromDatabase:
           name: prep_system_db
           property: database
+      - key: DATABASE_URL
+        fromDatabase:
+          name: prep_system_db
+          property: connectionString
       - key: NEXT_PUBLIC_API_URL
         value: ${RENDER_EXTERNAL_URL}/api
 
