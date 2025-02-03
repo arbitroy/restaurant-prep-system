@@ -5,7 +5,7 @@ import { validateConnection } from '@/lib/db/pool';
 export async function GET(_request: NextRequest) {
     try {
         // First validate connection with retries
-        const isConnected = await validateConnection();
+        const isConnected = await validateConnection(3); // 3 retries max
         
         if (!isConnected) {
             return NextResponse.json({
@@ -15,24 +15,25 @@ export async function GET(_request: NextRequest) {
             }, { status: 503 });
         }
 
-        // If connected, get server timestamp
+        // Check database connection by running a simple query
         const { rows } = await query({
-            text: 'SELECT NOW() as server_time, version() as db_version'
+            text: 'SELECT CURRENT_TIMESTAMP as time, current_database() as db, version() as version'
         });
 
         return NextResponse.json({
             status: 'healthy',
             database: {
                 connected: true,
-                serverTime: rows[0].server_time,
-                version: rows[0].db_version
+                currentDb: rows[0].db,
+                serverTime: rows[0].time,
+                version: rows[0].version
             },
-            environment: process.env.NODE_ENV,
+            env: process.env.NODE_ENV,
             timestamp: new Date().toISOString()
         });
 
     } catch (error) {
-        console.error('Health check failed:', error);
+        console.error('[Health Check Failed]:', error);
         
         return NextResponse.json({
             status: 'unhealthy',

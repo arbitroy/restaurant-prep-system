@@ -8,7 +8,7 @@ services:
       npm run build
       npm run db:setup # This will run migrations and seed
     startCommand: npm start
-    healthCheckPath: /api/health # We'll create this endpoint
+    healthCheckPath: /api/health
     autoDeploy: false
     envVars:
       - key: NODE_ENV
@@ -34,13 +34,11 @@ services:
           name: prep_system_db
           property: database
       - key: NEXT_PUBLIC_API_URL
-        value: https://${RENDER_EXTERNAL_URL}/api
-    dependencies:
-      - name: prep_system_db
+        value: ${RENDER_EXTERNAL_URL}/api
 
 databases:
   - name: prep_system_db
     databaseName: prep_system
     user: prep_system_user
     plan: free
-    ipAllowList: []  # optional, 'allow all' by default
+    ipAllowList: [] # Only internal connections
