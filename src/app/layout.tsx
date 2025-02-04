@@ -1,3 +1,4 @@
+'use client'
 import './globals.css';
 import { getDefaultMetadata } from '@/lib/config/metadata';
 import { Header } from '@/components/layout/Header';
