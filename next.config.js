@@ -1,12 +1,14 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-    output: 'standalone',
     poweredByHeader: false,
     compress: true,
     generateEtags: true,
     distDir: '.next',
     typescript: {
         ignoreBuildErrors: true // Optional: only if you want builds to succeed with TS errors
+    },
+    serverRuntimeConfig: {
+        port: process.env.PORT || 10000
     },
 
     headers: async () => [

@@ -11,6 +11,8 @@ services:
     healthCheckPath: /api/health
     autoDeploy: false
     envVars:
+      - key: PORT
+        value: 10000
       - key: NODE_ENV
         value: production
       - key: POSTGRES_USER

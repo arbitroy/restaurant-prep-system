@@ -16,15 +16,8 @@ class DatabasePool {
   private static getConfig(): DatabaseConfig {
     const isProduction = process.env.NODE_ENV === 'production';
 
-    // Add debug logging
-    console.log('Environment variables:', {
-      NODE_ENV: process.env.NODE_ENV,
-      DATABASE_URL: process.env.DATABASE_URL ? 'exists' : 'missing',
-      POSTGRES_USER: process.env.POSTGRES_USER ? 'exists' : 'missing',
-    });
-
     if (process.env.DATABASE_URL) {
-      console.log('Using DATABASE_URL connection string');
+      
       return {
         connectionString: process.env.DATABASE_URL,
         ssl: isProduction ? {
@@ -33,7 +26,6 @@ class DatabasePool {
       };
     }
 
-    console.log('Falling back to individual params');
     const baseConfig: DatabaseConfig = {
       user: process.env.POSTGRES_USER,
       password: process.env.POSTGRES_PASSWORD,
@@ -51,7 +43,12 @@ class DatabasePool {
 
   static getInstance(): Pool {
     if (!DatabasePool.instance) {
-      DatabasePool.instance = new Pool(DatabasePool.getConfig());
+      DatabasePool.instance = new Pool({
+        max: 20, // Add connection limit
+        idleTimeoutMillis: 30000,
+        connectionTimeoutMillis: 2000,
+        ...DatabasePool.getConfig()
+      });
 
       // Event handlers
       DatabasePool.instance.on('error', (err) => {
@@ -115,13 +112,16 @@ export async function validateConnection(maxAttempts = 5): Promise<boolean> {
   for (let attempt = 1; attempt <= maxAttempts; attempt++) {
     try {
       const client = await pool.connect();
-      await client.query('SELECT 1');
-      client.release();
-      return true;
+      try {
+        await client.query('SELECT 1');
+        return true;
+      } finally {
+        client.release();
+      }
     } catch (error) {
-      console.error(`Database connection attempt ${attempt}/${maxAttempts} failed:`, error);
+      console.error(`Connection attempt ${attempt}/${maxAttempts} failed:`, error);
       if (attempt === maxAttempts) return false;
-      await new Promise(resolve => setTimeout(resolve, 5000));
+      await new Promise(resolve => setTimeout(resolve, 1000 * attempt));
     }
   }
   return false;

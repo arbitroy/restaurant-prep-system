@@ -6,12 +6,25 @@ import { DatabaseError } from '@/types/errors';
 
 const GenerateTasksSchema = z.object({
     restaurantId: z.number(),
-    date: z.string().transform(str => new Date(str)),
+    date: z.string().transform((str, ctx) => {
+        const date = new Date(str);
+        if (isNaN(date.getTime())) {
+            ctx.addIssue({
+                code: z.ZodIssueCode.invalid_date,
+                message: "Invalid date format"
+            });
+            return z.NEVER;
+        }
+        return date;
+    }),
     requirements: z.array(z.object({
         prepItemId: z.number(),
-        requiredQuantity: z.number().positive()
-    }))
+        requiredQuantity: z.number().min(0)
+    })).nonempty({
+        message: "At least one requirement must be provided"
+    })
 });
+
 
 type GenerateTasksResponse = {
     tasksGenerated: number;
