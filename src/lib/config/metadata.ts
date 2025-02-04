@@ -11,7 +11,6 @@ export const siteConfig = {
     defaultLocale: 'en',
     siteUrl: process.env.NEXT_PUBLIC_SITE_URL || 'https://restaurant-prep-system.onrender.com',
     twitterHandle: '@restaurantprep',
-    themeColor: '#373d20'
 } as const;
 
 export const getDefaultMetadata = (path: string = ''): PageMetadata => ({
@@ -22,7 +21,6 @@ export const getDefaultMetadata = (path: string = ''): PageMetadata => ({
     },
     description: siteConfig.description,
     robots: 'index, follow',
-    themeColor: siteConfig.themeColor,
     alternates: {
         canonical: `${siteConfig.siteUrl}${path}`
     },
