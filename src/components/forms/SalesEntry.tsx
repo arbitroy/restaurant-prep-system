@@ -33,15 +33,36 @@ export function SalesEntry({ restaurantId, menuItems }: SalesEntryProps) {
         restaurantId
     });
 
+    const validateForm = (): boolean => {
+        // Convert and validate quantity
+        const numericQuantity = parseInt(quantity);
+        if (!quantity || isNaN(numericQuantity) || numericQuantity <= 0) {
+            setNotification({
+                show: true,
+                message: 'Please enter a valid quantity',
+                type: 'error'
+            });
+            return false;
+        }
+
+        // Validate selected item
+        const itemId = parseInt(selectedItem);
+        if (!selectedItem || isNaN(itemId) || !menuItems.find(item => item.id === itemId)) {
+            setNotification({
+                show: true,
+                message: 'Please select a valid menu item',
+                type: 'error'
+            });
+            return false;
+        }
+
+        return true;
+    };
+
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
 
-        if (!selectedItem || !quantity) {
-            setNotification({
-                show: true,
-                message: 'Please fill in all fields',
-                type: 'error'
-            });
+        if (!validateForm()) {
             return;
         }
 
@@ -53,16 +74,16 @@ export function SalesEntry({ restaurantId, menuItems }: SalesEntryProps) {
                 date: selectedDate
             });
 
+            // Reset form on success
+            setSelectedItem('');
+            setQuantity('');
+            
             setNotification({
                 show: true,
                 message: 'Sales entry added successfully',
                 type: 'success'
             });
-
-            // Reset form
-            setSelectedItem('');
-            setQuantity('');
-        } catch {
+        } catch (error) {
             setNotification({
                 show: true,
                 message: 'Failed to add sales entry',
@@ -87,20 +108,37 @@ export function SalesEntry({ restaurantId, menuItems }: SalesEntryProps) {
                 <Select
                     label="Menu Item"
                     value={selectedItem}
-                    onChange={(e) => setSelectedItem(e.target.value)}
-                    options={menuOptions}
+                    onChange={(e) => {
+                        setSelectedItem(e.target.value);
+                        // Clear any error notification when user makes a selection
+                        if (notification.show && notification.type === 'error') {
+                            setNotification(prev => ({ ...prev, show: false }));
+                        }
+                    }}
+                    options={[
+                        { value: '', label: 'Select an item...' },
+                        ...menuOptions
+                    ]}
                 />
                 <Input
                     label="Quantity"
                     type="number"
-                    min="0"
+                    min="1"
                     value={quantity}
-                    onChange={(e) => setQuantity(e.target.value)}
+                    onChange={(e) => {
+                        setQuantity(e.target.value);
+                        // Clear any error notification when user types
+                        if (notification.show && notification.type === 'error') {
+                            setNotification(prev => ({ ...prev, show: false }));
+                        }
+                    }}
+                    placeholder="Enter quantity"
                 />
                 <Button
                     type="submit"
                     isLoading={isAddingEntry}
                     className="w-full"
+                    disabled={isAddingEntry}
                 >
                     Add Entry
                 </Button>
