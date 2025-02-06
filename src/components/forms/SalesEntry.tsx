@@ -83,7 +83,7 @@ export function SalesEntry({ restaurantId, menuItems }: SalesEntryProps) {
                 message: 'Sales entry added successfully',
                 type: 'success'
             });
-        } catch (error) {
+        } catch {
             setNotification({
                 show: true,
                 message: 'Failed to add sales entry',

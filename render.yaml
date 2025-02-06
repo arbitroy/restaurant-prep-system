@@ -6,8 +6,8 @@ services:
     buildCommand: |
       npm install --production=false
       npm run build
-    startCommand: | 
-      npm run db:setup && npm start
+    startCommand: |
+      npm start
     healthCheckPath: /api/health
     autoDeploy: false
     envVars:
