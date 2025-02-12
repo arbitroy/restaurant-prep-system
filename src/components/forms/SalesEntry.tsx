@@ -10,9 +10,10 @@ import { useSales } from '@/hooks/useSales';
 interface SalesEntryProps {
     restaurantId: number;
     menuItems: MenuItem[];
+    selectedDate: Date;
 }
 
-export function SalesEntry({ restaurantId, menuItems }: SalesEntryProps) {
+export function SalesEntry({ restaurantId, menuItems, selectedDate }: SalesEntryProps) {
     const [selectedItem, setSelectedItem] = useState<string>('');
     const [quantity, setQuantity] = useState<string>('');
     const [notification, setNotification] = useState<{
@@ -27,8 +28,7 @@ export function SalesEntry({ restaurantId, menuItems }: SalesEntryProps) {
 
     const {
         addSalesEntry,
-        isAddingEntry,
-        selectedDate
+        isAddingEntry
     } = useSales({
         restaurantId
     });
@@ -103,7 +103,11 @@ export function SalesEntry({ restaurantId, menuItems }: SalesEntryProps) {
             animate={{ opacity: 1, y: 0 }}
             className="p-6 bg-white rounded-lg shadow-sm"
         >
-            <h2 className="text-xl font-semibold mb-4">Add Sales Entry</h2>
+            <h2 className="text-xl font-semibold mb-2">Add Sales Entry</h2>
+            <div className="text-sm text-gray-500 mb-4">
+                Adding entry for: {selectedDate.toLocaleDateString()}
+            </div>
+            
             <form onSubmit={handleSubmit} className="space-y-4">
                 <Select
                     label="Menu Item"
